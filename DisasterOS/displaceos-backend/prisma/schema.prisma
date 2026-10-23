@@ -1,0 +1,745 @@
+// DisplaceOS data model.
+// Quantities are integers in each item's declared unit. All timestamps are stored in UTC.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────
+
+enum Role {
+  CITIZEN
+  CAMP_MANAGER
+  RELIEF_COORDINATOR
+  INVENTORY_MANAGER
+  RESPONSE_TEAM
+  ADMIN
+}
+
+enum Severity {
+  NORMAL
+  HIGH
+  RED
+  HYPER_RED
+}
+
+enum SupplyCategory {
+  FOOD
+  WATER
+  MEDICINE
+  SHELTER
+  HYGIENE
+  CLOTHING
+  OTHER
+}
+
+enum RequestStatus {
+  SUBMITTED
+  VERIFIED
+  REJECTED
+  ALLOCATED
+  DISPATCHED
+  PARTIALLY_DELIVERED
+  DELIVERED
+  CANCELLED
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum LocationType {
+  CAMP
+  WAREHOUSE
+  DISTRIBUTION_POINT
+  SHELTER
+  MEDICAL_POINT
+  OTHER
+}
+
+enum ZoneStatus {
+  ACTIVE
+  MONITORING
+  CLOSED
+}
+
+enum InventoryTransactionType {
+  RECEIPT
+  ADJUSTMENT
+  RESERVATION
+  RELEASE
+  CONSUMPTION
+}
+
+enum AllocationStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  RELEASED
+  DISPATCHED
+  FULFILLED
+}
+
+enum TeamAvailability {
+  AVAILABLE
+  BUSY
+  OFF_DUTY
+}
+
+enum DispatchStatus {
+  CREATED
+  ASSIGNED
+  ACCEPTED
+  IN_TRANSIT
+  PARTIALLY_DELIVERED
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum EtaSource {
+  MANUAL
+  ROUTING_PROVIDER
+  UNAVAILABLE
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+// ─── Identity ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  phone        String?
+  role         Role     @default(CITIZEN)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  sessions            RefreshSession[]
+  locationAssignments UserLocationAssignment[]
+  teamMemberships     TeamMember[]
+  requests            ReliefRequest[]          @relation("RequestRequester")
+  verifiedRequests    ReliefRequest[]          @relation("RequestVerifier")
+  notifications       Notification[]
+  preference          NotificationPreference?
+  auditLogs           AuditLog[]
+  timelineEvents      RequestTimelineEvent[]
+  alertsCreated       Alert[]                  @relation("AlertCreator")
+  alertsResolved      Alert[]                  @relation("AlertResolver")
+  acknowledgements    AlertAcknowledgement[]
+  inventoryTxns       InventoryTransaction[]
+  allocationsProposed Allocation[]             @relation("AllocationProposer")
+  allocationsApproved Allocation[]             @relation("AllocationApprover")
+  dispatchesCreated   Dispatch[]
+  dispatchEvents      DispatchStatusEvent[]
+  deliveryEvents      DeliveryEvent[]
+  etaEntries          EtaHistory[]
+  zonesCreated        DisasterZone[]
+  rulesCreated        EscalationRule[]
+  trackingTokens      PublicTrackingToken[]
+  attachments         RequestAttachment[]
+
+  @@index([role])
+}
+
+model RefreshSession {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  tokenHash    String    @unique
+  familyId     String    @db.Uuid
+  expiresAt    DateTime  @db.Timestamptz(3)
+  revokedAt    DateTime? @db.Timestamptz(3)
+  replacedById String?   @db.Uuid
+  userAgent    String?
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+// Scope assignment: camps for CAMP_MANAGER, stock locations for INVENTORY_MANAGER.
+model UserLocationAssignment {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  locationId String   @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, locationId])
+  @@index([locationId])
+}
+
+// ─── Places ───────────────────────────────────────────────────────────────
+
+model DisasterZone {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String
+  hazardType  String
+  description String?
+  status      ZoneStatus @default(ACTIVE)
+  severity    Severity   @default(HIGH)
+  centerLat   Float?
+  centerLng   Float?
+  radiusKm    Float?
+  source      String
+  sourceUrl   String?
+  isVerified  Boolean    @default(false)
+  createdById String?    @db.Uuid
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(3)
+
+  createdBy User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  locations Location[]
+  requests  ReliefRequest[]
+  alerts    Alert[]
+
+  @@index([status])
+}
+
+model Location {
+  id             String       @id @default(uuid()) @db.Uuid
+  name           String
+  type           LocationType
+  address        String?
+  area           String?
+  latitude       Float?
+  longitude      Float?
+  contactInfo    String?
+  isActive       Boolean      @default(true)
+  disasterZoneId String?      @db.Uuid
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+
+  disasterZone   DisasterZone?            @relation(fields: [disasterZoneId], references: [id], onDelete: SetNull)
+  assignments    UserLocationAssignment[]
+  balances       InventoryBalance[]
+  transactions   InventoryTransaction[]
+  campRequests   ReliefRequest[]
+  allocations    Allocation[]
+  teamsBasedHere ResponseTeam[]
+
+  @@index([type])
+  @@index([disasterZoneId])
+}
+
+// ─── Requests ─────────────────────────────────────────────────────────────
+
+model ReliefRequest {
+  id                 String         @id @default(uuid()) @db.Uuid
+  referenceCode      String         @unique
+  requesterId        String         @db.Uuid
+  campId             String?        @db.Uuid
+  disasterZoneId     String?        @db.Uuid
+  category           SupplyCategory
+  description        String
+  peopleAffected     Int
+  vulnerableCount    Int?
+  destinationAddress String?
+  latitude           Float?
+  longitude          Float?
+  status             RequestStatus  @default(SUBMITTED)
+  suggestedSeverity  Severity       @default(NORMAL)
+  severity           Severity       @default(NORMAL)
+  severityReason     String?
+  verifiedById       String?        @db.Uuid
+  verifiedAt         DateTime?      @db.Timestamptz(3)
+  rejectionReason    String?
+  cancelledReason    String?
+  cancelledAt        DateTime?      @db.Timestamptz(3)
+  deliveredAt        DateTime?      @db.Timestamptz(3)
+  createdAt          DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @db.Timestamptz(3)
+
+  requester      User                   @relation("RequestRequester", fields: [requesterId], references: [id])
+  verifiedBy     User?                  @relation("RequestVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  camp           Location?              @relation(fields: [campId], references: [id], onDelete: SetNull)
+  disasterZone   DisasterZone?          @relation(fields: [disasterZoneId], references: [id], onDelete: SetNull)
+  items          RequestItem[]
+  attachments    RequestAttachment[]
+  timeline       RequestTimelineEvent[]
+  alerts         Alert[]
+  allocations    Allocation[]
+  dispatches     Dispatch[]
+  trackingTokens PublicTrackingToken[]
+
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt])
+  @@index([requesterId])
+  @@index([campId])
+  @@index([category])
+}
+
+model RequestItem {
+  id                String         @id @default(uuid()) @db.Uuid
+  requestId         String         @db.Uuid
+  inventoryItemId   String?        @db.Uuid
+  name              String
+  category          SupplyCategory
+  unit              String
+  quantity          Int
+  deliveredQuantity Int            @default(0)
+
+  request         ReliefRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  inventoryItem   InventoryItem?   @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  allocationLines AllocationLine[]
+  dispatchLines   DispatchLine[]
+
+  @@index([requestId])
+  @@index([inventoryItemId])
+}
+
+// Metadata only. File bytes are never stored in the database.
+model RequestAttachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  requestId    String   @db.Uuid
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  storageRef   String
+  uploadedById String   @db.Uuid
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  request    ReliefRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  uploadedBy User          @relation(fields: [uploadedById], references: [id])
+
+  @@index([requestId])
+}
+
+// Append-only. `isPublic` marks events safe to show to the requester and on public tracking.
+model RequestTimelineEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  requestId String   @db.Uuid
+  type      String
+  message   String
+  isPublic  Boolean  @default(true)
+  actorId   String?  @db.Uuid
+  data      Json?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  request ReliefRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor   User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, createdAt])
+}
+
+// ─── Alerts and rules ─────────────────────────────────────────────────────
+
+model Alert {
+  id              String      @id @default(uuid()) @db.Uuid
+  title           String
+  message         String
+  severity        Severity
+  status          AlertStatus @default(ACTIVE)
+  source          String
+  requestId       String?     @db.Uuid
+  disasterZoneId  String?     @db.Uuid
+  escalationLevel Int         @default(0)
+  createdById     String?     @db.Uuid
+  resolvedById    String?     @db.Uuid
+  resolvedAt      DateTime?   @db.Timestamptz(3)
+  resolutionNote  String?
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+
+  request          ReliefRequest?         @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  disasterZone     DisasterZone?          @relation(fields: [disasterZoneId], references: [id], onDelete: SetNull)
+  createdBy        User?                  @relation("AlertCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  resolvedBy       User?                  @relation("AlertResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  acknowledgements AlertAcknowledgement[]
+
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt])
+  @@index([requestId])
+}
+
+model AlertAcknowledgement {
+  id        String   @id @default(uuid()) @db.Uuid
+  alertId   String   @db.Uuid
+  userId    String   @db.Uuid
+  note      String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  alert Alert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, userId])
+}
+
+// Configurable severity-suggestion rule. `conditions` is validated by src/validators/ops.validators.js (createRuleBody).
+model EscalationRule {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  description       String?
+  isActive          Boolean  @default(true)
+  priority          Int      @default(100)
+  conditions        Json
+  resultingSeverity Severity
+  createdById       String?  @db.Uuid
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([isActive])
+}
+
+// ─── Inventory ────────────────────────────────────────────────────────────
+
+model InventoryItem {
+  id                String         @id @default(uuid()) @db.Uuid
+  sku               String         @unique
+  name              String
+  category          SupplyCategory
+  unit              String
+  description       String?
+  lowStockThreshold Int            @default(0)
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+
+  balances        InventoryBalance[]
+  transactions    InventoryTransaction[]
+  requestItems    RequestItem[]
+  allocationLines AllocationLine[]
+  dispatchLines   DispatchLine[]
+
+  @@index([category])
+}
+
+// Invariant (enforced by CHECK constraints in the migration):
+//   onHand >= 0, reserved >= 0, reserved <= onHand. available = onHand - reserved.
+model InventoryBalance {
+  id            String    @id @default(uuid()) @db.Uuid
+  itemId        String    @db.Uuid
+  locationId    String    @db.Uuid
+  onHand        Int       @default(0)
+  reserved      Int       @default(0)
+  // Last physical confirmation (receipt or adjustment). Drives the "availability not confirmed" freshness rule.
+  lastCountedAt DateTime? @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  location Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, locationId])
+  @@index([locationId])
+}
+
+model InventoryTransaction {
+  id            String                   @id @default(uuid()) @db.Uuid
+  type          InventoryTransactionType
+  itemId        String                   @db.Uuid
+  locationId    String                   @db.Uuid
+  // Signed change to on-hand (RECEIPT +, CONSUMPTION -, ADJUSTMENT ±) or to reserved (RESERVATION +, RELEASE -).
+  quantity      Int
+  onHandAfter   Int
+  reservedAfter Int
+  reason        String
+  actorId       String?                  @db.Uuid
+  requestId     String?                  @db.Uuid
+  allocationId  String?                  @db.Uuid
+  dispatchId    String?                  @db.Uuid
+  createdAt     DateTime                 @default(now()) @db.Timestamptz(3)
+
+  item     InventoryItem @relation(fields: [itemId], references: [id])
+  location Location      @relation(fields: [locationId], references: [id])
+  actor    User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([itemId, locationId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([allocationId])
+}
+
+// ─── Allocation ───────────────────────────────────────────────────────────
+
+model Allocation {
+  id               String           @id @default(uuid()) @db.Uuid
+  requestId        String           @db.Uuid
+  sourceLocationId String           @db.Uuid
+  status           AllocationStatus @default(PROPOSED)
+  notes            String?
+  rationale        Json?
+  proposedById     String           @db.Uuid
+  approvedById     String?          @db.Uuid
+  approvedAt       DateTime?        @db.Timestamptz(3)
+  rejectedReason   String?
+  releasedReason   String?
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
+
+  request        ReliefRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  sourceLocation Location         @relation(fields: [sourceLocationId], references: [id])
+  proposedBy     User             @relation("AllocationProposer", fields: [proposedById], references: [id])
+  approvedBy     User?            @relation("AllocationApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  lines          AllocationLine[]
+  dispatches     Dispatch[]
+
+  @@index([status])
+  @@index([requestId])
+  @@index([sourceLocationId])
+}
+
+model AllocationLine {
+  id            String @id @default(uuid()) @db.Uuid
+  allocationId  String @db.Uuid
+  requestItemId String @db.Uuid
+  itemId        String @db.Uuid
+  quantity      Int
+
+  allocation    Allocation     @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  requestItem   RequestItem    @relation(fields: [requestItemId], references: [id], onDelete: Cascade)
+  item          InventoryItem  @relation(fields: [itemId], references: [id])
+  dispatchLines DispatchLine[]
+
+  @@index([allocationId])
+}
+
+// ─── Teams and dispatch ───────────────────────────────────────────────────
+
+model ResponseTeam {
+  id             String           @id @default(uuid()) @db.Uuid
+  name           String           @unique
+  callSign       String?
+  availability   TeamAvailability @default(AVAILABLE)
+  baseLocationId String?          @db.Uuid
+  lastLatitude   Float?
+  lastLongitude  Float?
+  lastLocationAt DateTime?        @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+
+  baseLocation Location?    @relation(fields: [baseLocationId], references: [id], onDelete: SetNull)
+  members      TeamMember[]
+  dispatches   Dispatch[]
+
+  @@index([availability])
+}
+
+model TeamMember {
+  id         String   @id @default(uuid()) @db.Uuid
+  teamId     String   @db.Uuid
+  userId     String   @db.Uuid
+  roleInTeam String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  team ResponseTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model Dispatch {
+  id                String         @id @default(uuid()) @db.Uuid
+  allocationId      String         @db.Uuid
+  requestId         String         @db.Uuid
+  teamId            String?        @db.Uuid
+  status            DispatchStatus @default(CREATED)
+  notes             String?
+  currentLatitude   Float?
+  currentLongitude  Float?
+  locationUpdatedAt DateTime?      @db.Timestamptz(3)
+  currentEta        DateTime?      @db.Timestamptz(3)
+  etaSource         EtaSource?
+  etaUpdatedAt      DateTime?      @db.Timestamptz(3)
+  etaReason         String?
+  isDelayed         Boolean        @default(false)
+  failureReason     String?
+  createdById       String         @db.Uuid
+  acceptedAt        DateTime?      @db.Timestamptz(3)
+  startedAt         DateTime?      @db.Timestamptz(3)
+  completedAt       DateTime?      @db.Timestamptz(3)
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+
+  allocation     Allocation            @relation(fields: [allocationId], references: [id])
+  request        ReliefRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  team           ResponseTeam?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  createdBy      User                  @relation(fields: [createdById], references: [id])
+  lines          DispatchLine[]
+  statusEvents   DispatchStatusEvent[]
+  deliveryEvents DeliveryEvent[]
+  etaHistory     EtaHistory[]
+
+  @@index([status])
+  @@index([teamId])
+  @@index([requestId])
+  @@index([allocationId])
+}
+
+model DispatchLine {
+  id                String @id @default(uuid()) @db.Uuid
+  dispatchId        String @db.Uuid
+  allocationLineId  String @db.Uuid
+  requestItemId     String @db.Uuid
+  itemId            String @db.Uuid
+  quantity          Int
+  deliveredQuantity Int    @default(0)
+
+  dispatch       Dispatch            @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  allocationLine AllocationLine      @relation(fields: [allocationLineId], references: [id])
+  requestItem    RequestItem         @relation(fields: [requestItemId], references: [id])
+  item           InventoryItem       @relation(fields: [itemId], references: [id])
+  deliveryLines  DeliveryEventLine[]
+
+  @@index([dispatchId])
+}
+
+model DispatchStatusEvent {
+  id         String          @id @default(uuid()) @db.Uuid
+  dispatchId String          @db.Uuid
+  fromStatus DispatchStatus?
+  toStatus   DispatchStatus
+  reason     String?
+  actorId    String?         @db.Uuid
+  createdAt  DateTime        @default(now()) @db.Timestamptz(3)
+
+  dispatch Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  actor    User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([dispatchId, createdAt])
+}
+
+model DeliveryEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  dispatchId   String   @db.Uuid
+  recordedById String   @db.Uuid
+  isFinal      Boolean  @default(false)
+  notes        String?
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  dispatch   Dispatch            @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  recordedBy User                @relation(fields: [recordedById], references: [id])
+  lines      DeliveryEventLine[]
+
+  @@index([dispatchId])
+}
+
+model DeliveryEventLine {
+  id              String @id @default(uuid()) @db.Uuid
+  deliveryEventId String @db.Uuid
+  dispatchLineId  String @db.Uuid
+  quantity        Int
+
+  deliveryEvent DeliveryEvent @relation(fields: [deliveryEventId], references: [id], onDelete: Cascade)
+  dispatchLine  DispatchLine  @relation(fields: [dispatchLineId], references: [id], onDelete: Cascade)
+}
+
+// Append-only ETA history. `newEta` null + available=false records an "ETA unavailable" state.
+model EtaHistory {
+  id          String    @id @default(uuid()) @db.Uuid
+  dispatchId  String    @db.Uuid
+  previousEta DateTime? @db.Timestamptz(3)
+  newEta      DateTime? @db.Timestamptz(3)
+  available   Boolean
+  source      EtaSource
+  provider    String?
+  reason      String
+  distanceKm  Float?
+  actorId     String?   @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  dispatch Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  actor    User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([dispatchId, createdAt])
+}
+
+// ─── Notifications, audit, public tracking ────────────────────────────────
+
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @db.Uuid
+  type      String
+  title     String
+  body      String
+  data      Json?
+  channel   NotificationChannel @default(IN_APP)
+  status    NotificationStatus  @default(PENDING)
+  error     String?
+  readAt    DateTime?           @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model NotificationPreference {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
+  inApp       Boolean  @default(true)
+  email       Boolean  @default(false)
+  sms         Boolean  @default(false)
+  minSeverity Severity @default(NORMAL)
+  mutedTypes  String[] @default([])
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+  requestId  String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Only a SHA-256 hash of the token is stored. The raw token is shown once at creation.
+model PublicTrackingToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  requestId   String    @db.Uuid
+  tokenHash   String    @unique
+  createdById String    @db.Uuid
+  expiresAt   DateTime  @db.Timestamptz(3)
+  revokedAt   DateTime? @db.Timestamptz(3)
+  lastUsedAt  DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  request   ReliefRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  createdBy User          @relation(fields: [createdById], references: [id])
+
+  @@index([requestId])
+}

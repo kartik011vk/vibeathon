@@ -1,0 +1,18 @@
+{
+  "name": "disasteros",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DisplaceOS disaster-relief coordination platform — backend (displaceos-backend) and frontend (displaceos-frontend)",
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "dev": "node scripts/dev.js",
+    "db": "npm --prefix displaceos-backend run db:local",
+    "seed": "npm --prefix displaceos-backend run db:seed",
+    "test": "npm --prefix displaceos-backend test && npm --prefix displaceos-frontend test",
+    "build": "npm --prefix displaceos-frontend run build"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
