@@ -15,7 +15,7 @@ The backend must be running first (see `../displaceos-backend/README.md`, or `np
 npm install
 cp .env.example .env     # defaults work for local development
 npm run dev              # http://localhost:5173
-npm test                 # 28 tests
+npm test                 # 32 tests
 npm run build            # production bundle in dist/
 ```
 
@@ -59,6 +59,12 @@ src/test/           Vitest suites
   `/ops/needs` (open needs and offers), `/donate`, `/donations`, `/ops/donations`. Teams share live location with
   `useLiveLocation` (watchPosition, at most every 15 s). Requesters see the live map only while the backend marks
   `location.sharedWithRequester`.
+- **SOS**: `SosAlertLayer` (in the layout) polls `/sos/active` every 15 s and is refreshed instantly by
+  `sos:created` / `sos:updated` socket events. It shows a full-screen red alert (vibration on phones) plus a sticky
+  strip. Responders get the exact location, message, contact and "I'm responding"; everyone else gets the area and
+  112. Pages: `/sos` (send), `/sos/:id` (status), `/ops/sos` (board).
+- **Hand-over checklist**: responders tick items; the dialog reads the phone position and shows whether it is within
+  300 m (+ accuracy) of the delivery point before saving. Requesters confirm receipt from the request page.
 - **Honesty rules**: availability comes only from recorded stock. Stale counts read "Availability not confirmed".
   Distance appears only when both points have coordinates, labelled "straight-line". The ETA appears only when a
   team has entered one, labelled as an estimate. Nothing falls back to placeholder data when a request fails.

@@ -70,6 +70,7 @@ export async function requestTracking(user, requestId) {
       camp: request.camp,
       createdAt: request.createdAt,
       rejectionReason: request.rejectionReason,
+      receiptConfirmedAt: request.receiptConfirmedAt,
       cancelledReason: request.cancelledReason,
     },
     items,

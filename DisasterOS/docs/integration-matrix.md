@@ -56,6 +56,18 @@ Status key:
 | Ops · donations accept / count in / decline | `POST /supply-offers/:id/accept|receive|reject` | RC/A/IM; receive = IM of the location or admin | unmapped items must be matched; wrong location → 403 | VERIFIED (browser, tests) |
 | Globe · zoom, borders, place names, search | static Natural Earth data in `src/data/` (lazy chunks) | anyone | flat map fallback | VERIFIED (browser screenshots at three zoom levels) |
 
+## Emergency SOS and delivery verification (v1.2)
+
+| Screen · action | Method & route / event | Roles | Error and empty handling | Status |
+|---|---|---|---|---|
+| Header SOS button → `/sos` send | browser GPS (asked on open) → `POST /sos` | signed in (visitors are asked to sign in, and shown 112) | location denied → address required; second open SOS → 409 | VERIFIED (browser) |
+| Global red pop-up + strip | `GET /sos/active` (15 s polling) + `sos:created` / `sos:updated` | everyone; details for responders only | none open → nothing shown | VERIFIED (browser: responder 0.6 s, visitor 13.6 s; private message hidden from visitor) |
+| I'm responding | `POST /sos/:id/respond` | RT, CM, RC, A | already taken → 409 message | VERIFIED (browser, tests) |
+| Requester status page | `GET /sos/:id`, `PATCH /sos/:id/location`, `POST /sos/:id/cancel` | owner | — | VERIFIED (browser, tests) |
+| Close SOS with location check | browser GPS → `POST /sos/:id/resolve` | the responder, RC/A | location unavailable → closed unverified | VERIFIED (browser: "location verified") |
+| Hand-over checklist with GPS check | browser GPS → `POST /dispatches/:id/complete` with position | assigned team, RC/A | far away → note required | VERIFIED (browser: 38 m, verified; tests: too far) |
+| Recipient confirms receipt | `POST /requests/:id/confirm-receipt` | requester | twice → 409 | VERIFIED (browser, tests) |
+
 ## Operations screens
 
 | Screen · action | Method & route / event | Roles | Error and empty handling | Status |

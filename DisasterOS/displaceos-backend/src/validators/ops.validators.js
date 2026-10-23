@@ -134,8 +134,13 @@ export const completeBody = z
     lines: z.array(z.object({ dispatchLineId: uuid, quantity: z.number().int().min(0).max(1_000_000) }).strict()).max(20).default([]),
     notes: text(1000).optional(),
     final: z.boolean().default(false),
+    // Responder's phone position at hand-over, used to verify the delivery point.
+    latitude: latitude.optional(),
+    longitude: longitude.optional(),
+    accuracyMeters: z.number().positive().max(100000).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => (v.latitude == null) === (v.longitude == null), { message: 'Provide both latitude and longitude, or neither', path: ['latitude'] });
 export const failBody = z.object({ reason }).strict();
 // `eta: null` records an explicit "ETA unavailable" state with a reason.
 export const etaBody = z

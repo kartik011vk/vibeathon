@@ -2,6 +2,8 @@
 import * as orgs from '../services/organization.service.js';
 import * as offers from '../services/offer.service.js';
 import * as supplies from '../services/supplyOffer.service.js';
+import * as sos from '../services/sos.service.js';
+import { confirmReceipt } from '../services/request.service.js';
 import { REFRESH_COOKIE, refreshCookieOptions } from './auth.controller.js';
 import { config } from '../config/env.js';
 import { created, ok } from '../utils/respond.js';
@@ -63,3 +65,19 @@ export const supplyCtl = {
   reject: async (req, res) => ok(res, await supplies.rejectOffer(req.user, p(req, 'offerId'), req.valid.body, req)),
   cancel: async (req, res) => ok(res, await supplies.cancelOffer(req.user, p(req, 'offerId'), req.valid.body, req)),
 };
+
+export const sosCtl = {
+  raise: async (req, res) => created(res, await sos.raiseSos(req.user, req.valid.body, req)),
+  active: async (req, res) => {
+    const items = await sos.activeSos(req.user);
+    ok(res, items, { count: items.length, scope: req.user && sos.SOS_RESPONDERS.includes(req.user.role) ? 'responder' : 'public' });
+  },
+  mine: async (req, res) => ok(res, await sos.mySos(req.user)),
+  get: async (req, res) => ok(res, await sos.getSos(req.user, p(req, 'sosId'))),
+  location: async (req, res) => ok(res, await sos.updateSosLocation(req.user, p(req, 'sosId'), req.valid.body, req)),
+  respond: async (req, res) => ok(res, await sos.respond(req.user, p(req, 'sosId'), req)),
+  resolve: async (req, res) => ok(res, await sos.resolve(req.user, p(req, 'sosId'), req.valid.body, req)),
+  cancel: async (req, res) => ok(res, await sos.cancel(req.user, p(req, 'sosId'), req.valid.body, req)),
+};
+
+export const confirmReceiptCtl = async (req, res) => ok(res, await confirmReceipt(req.user, p(req, 'requestId'), req.valid.body, req));

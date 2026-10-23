@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, LogIn, LogOut, Menu, UserRound, X } from 'lucide-react';
+import { Bell, LogIn, LogOut, Menu, Siren, UserRound, X } from 'lucide-react';
+import { SosAlertLayer } from '../../features/sos/SosPages.jsx';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { useSocket } from '../../app/SocketContext.jsx';
 import { notificationsApi } from '../../api/services.js';
@@ -80,6 +81,9 @@ export function Header() {
           {isStaff && <NavLink to="/ops">Operations</NavLink>}
         </nav>
         <div className="header-tools">
+          <Link to="/sos" className="btn btn-sm sos-btn" aria-label="SOS: I need rescue now">
+            <Siren size={16} aria-hidden="true" /> SOS
+          </Link>
           <ConnectionStatus />
           {user && <NotificationBell />}
           {status === 'authenticated' ? (
@@ -142,6 +146,7 @@ export default function Layout() {
         Skip to main content
       </a>
       <Header />
+      <SosAlertLayer />
       <main id="main" tabIndex={-1}>
         <Outlet />
       </main>

@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { offerCtl, orgCtl, supplyCtl } from '../controllers/responder.controller.js';
-import { authenticate, requireRole } from '../middleware/auth.js';
+import { confirmReceiptCtl, offerCtl, orgCtl, sosCtl, supplyCtl } from '../controllers/responder.controller.js';
+import { authenticate, optionalAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { registerLimiter } from '../middleware/rateLimit.js';
+import { publicReadLimiter, registerLimiter, sosLimiter } from '../middleware/rateLimit.js';
 import { idParam, uuid } from '../validators/common.js';
 import * as v from '../validators/responder.validators.js';
 
@@ -26,6 +26,7 @@ export const offersRouter = Router();
 offersRouter.get('/open-needs', authenticate, requireRole('RESPONSE_TEAM', ...COORD), validate({ query: v.openNeedsQuery }), offerCtl.openNeeds);
 offersRouter.post('/:requestId/offers', authenticate, requireRole('RESPONSE_TEAM'), validate({ params: idParam('requestId'), body: v.createOfferBody }), offerCtl.create);
 offersRouter.get('/:requestId/offers', authenticate, requireRole('RESPONSE_TEAM', ...COORD), validate({ params: idParam('requestId') }), offerCtl.list);
+offersRouter.post('/:requestId/confirm-receipt', authenticate, validate({ params: idParam('requestId'), body: v.confirmReceiptBody }), confirmReceiptCtl);
 offersRouter.post(
   '/:requestId/offers/:offerId/withdraw',
   authenticate,
@@ -46,3 +47,17 @@ supplyOffersRouter.post('/:offerId/accept', requireRole(...HANDLERS), validate({
 supplyOffersRouter.post('/:offerId/receive', requireRole('INVENTORY_MANAGER', 'ADMIN'), validate({ ...oid, body: v.receiveSupplyBody }), supplyCtl.receive);
 supplyOffersRouter.post('/:offerId/reject', requireRole(...HANDLERS), validate({ ...oid, body: v.supplyReasonBody }), supplyCtl.reject);
 supplyOffersRouter.post('/:offerId/cancel', validate({ ...oid, body: v.supplyReasonBody }), supplyCtl.cancel);
+
+// Emergency rescue (SOS)
+export const sosRouter = Router();
+const sid = { params: idParam('sosId') };
+const SOS_ROLES = ['RESPONSE_TEAM', 'RELIEF_COORDINATOR', 'ADMIN', 'CAMP_MANAGER'];
+sosRouter.get('/active', publicReadLimiter, optionalAuth, sosCtl.active);
+sosRouter.use(authenticate);
+sosRouter.post('/', sosLimiter, validate({ body: v.raiseSosBody }), sosCtl.raise);
+sosRouter.get('/mine', sosCtl.mine);
+sosRouter.get('/:sosId', validate(sid), sosCtl.get);
+sosRouter.patch('/:sosId/location', validate({ ...sid, body: v.sosLocationBody }), sosCtl.location);
+sosRouter.post('/:sosId/respond', requireRole(...SOS_ROLES), validate(sid), sosCtl.respond);
+sosRouter.post('/:sosId/resolve', requireRole(...SOS_ROLES), validate({ ...sid, body: v.resolveSosBody }), sosCtl.resolve);
+sosRouter.post('/:sosId/cancel', validate({ ...sid, body: v.supplyReasonBody }), sosCtl.cancel);

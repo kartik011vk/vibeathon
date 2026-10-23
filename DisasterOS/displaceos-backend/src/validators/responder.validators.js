@@ -73,3 +73,28 @@ export const receiveSupplyBody = z
   .object({ lines: z.array(z.object({ lineId: uuid, receivedQuantity: z.number().int().min(0).max(1_000_000) }).strict()).min(1).max(20), note: text(500).optional() })
   .strict();
 export const supplyReasonBody = z.object({ reason }).strict();
+
+// SOS
+export const raiseSosBody = z
+  .object({
+    latitude: latitude.optional(),
+    longitude: longitude.optional(),
+    accuracyMeters: z.number().positive().max(100000).optional(),
+    address: text(300).optional(),
+    message: text(500, 3),
+    peopleCount: z.number().int().min(1).max(10_000).default(1),
+  })
+  .strict()
+  .refine((v) => (v.latitude == null) === (v.longitude == null), { message: 'Provide both latitude and longitude, or neither', path: ['latitude'] });
+export const sosLocationBody = z.object({ latitude, longitude, accuracyMeters: z.number().positive().max(100000).optional() }).strict();
+export const resolveSosBody = z
+  .object({
+    outcome: z.enum(['RESCUED', 'NOT_FOUND', 'FALSE_ALARM']),
+    note: text(1000, 3),
+    latitude: latitude.optional(),
+    longitude: longitude.optional(),
+    accuracyMeters: z.number().positive().max(100000).optional(),
+  })
+  .strict()
+  .refine((v) => (v.latitude == null) === (v.longitude == null), { message: 'Provide both latitude and longitude, or neither', path: ['latitude'] });
+export const confirmReceiptBody = z.object({ note: text(500).optional() }).strict();

@@ -139,6 +139,21 @@ export function DispatchCard({ d, showExact }) {
           )}
         </div>
       )}
+      {d.lastHandover && (
+        <div className="row small" style={{ marginTop: 8 }}>
+          <span className={`badge ${d.lastHandover.locationCheck === 'VERIFIED' ? 'check-ok' : d.lastHandover.locationCheck === 'TOO_FAR' ? 'check-warn' : 'badge-outline'}`}>
+            {
+              {
+                VERIFIED: `✓ Hand-over location verified${d.lastHandover.distanceM != null ? ` (${d.lastHandover.distanceM} m)` : ''}`,
+                TOO_FAR: `Handed over ${d.lastHandover.distanceM} m from the delivery point`,
+                NO_DESTINATION: 'Hand-over recorded (no delivery pin to compare)',
+                NO_LOCATION: 'Hand-over recorded without phone location',
+              }[d.lastHandover.locationCheck]
+            }
+          </span>
+          <span className="muted">{timeAgo(d.lastHandover.at)}</span>
+        </div>
+      )}
       {d.failureReason && <p className="small" style={{ marginTop: 8, marginBottom: 0 }}>Reason: {d.failureReason}</p>}
     </article>
   );

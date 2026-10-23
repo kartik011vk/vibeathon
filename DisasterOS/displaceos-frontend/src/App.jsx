@@ -26,6 +26,9 @@ const OpenNeedsPage = lazy(() => import('./features/responders/OpenNeedsPage.jsx
 const DonatePage = lazy(() => import('./features/donations/DonationPages.jsx').then((m) => ({ default: m.DonatePage })));
 const MyDonationsPage = lazy(() => import('./features/donations/DonationPages.jsx').then((m) => ({ default: m.MyDonationsPage })));
 const DonationDetailPage = lazy(() => import('./features/donations/DonationPages.jsx').then((m) => ({ default: m.DonationDetailPage })));
+const SosPage = lazy(() => import('./features/sos/SosPages.jsx').then((m) => ({ default: m.SosPage })));
+const SosStatusPage = lazy(() => import('./features/sos/SosPages.jsx').then((m) => ({ default: m.SosStatusPage })));
+const SosBoardPage = lazy(() => import('./features/sos/SosPages.jsx').then((m) => ({ default: m.SosBoardPage })));
 const OpsDonationsPage = lazy(() => import('./features/donations/DonationPages.jsx').then((m) => ({ default: m.OpsDonationsPage })));
 
 const STAFF = ['CAMP_MANAGER', 'RELIEF_COORDINATOR', 'INVENTORY_MANAGER', 'RESPONSE_TEAM', 'ADMIN'];
@@ -54,6 +57,8 @@ export default function App() {
           <Route path="updates" element={<DisasterUpdatesPage />} />
           <Route path="track" element={<TrackPage />} />
           <Route path="track/:token" element={<PublicTrackingPage />} />
+          <Route path="sos" element={<SosPage />} />
+          <Route path="sos/:sosId" element={<RequireAuth><SosStatusPage /></RequireAuth>} />
           <Route path="join-responder" element={<JoinResponderPage />} />
           <Route path="organization" element={<RequireAuth><OrganizationPage /></RequireAuth>} />
           <Route path="donate" element={<RequireAuth><DonatePage /></RequireAuth>} />
@@ -106,6 +111,7 @@ export default function App() {
             <Route path="inventory" element={<RequireAuth roles={['INVENTORY_MANAGER', 'RELIEF_COORDINATOR', 'ADMIN']}><InventoryPage /></RequireAuth>} />
             <Route path="dispatch" element={<RequireAuth roles={['RESPONSE_TEAM', 'RELIEF_COORDINATOR', 'ADMIN']}><DispatchPage /></RequireAuth>} />
             <Route path="admin" element={<RequireAuth roles={['ADMIN']}><AdminPage /></RequireAuth>} />
+            <Route path="sos" element={<RequireAuth roles={['RESPONSE_TEAM', 'RELIEF_COORDINATOR', 'ADMIN', 'CAMP_MANAGER']}><SosBoardPage /></RequireAuth>} />
             <Route path="needs" element={<RequireAuth roles={['RESPONSE_TEAM', 'RELIEF_COORDINATOR', 'ADMIN']}><OpenNeedsPage /></RequireAuth>} />
             <Route path="donations" element={<RequireAuth roles={['RELIEF_COORDINATOR', 'ADMIN', 'INVENTORY_MANAGER']}><OpsDonationsPage /></RequireAuth>} />
           </Route>

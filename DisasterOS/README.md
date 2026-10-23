@@ -60,7 +60,7 @@ resets the database to this demo state.
 ## Tests
 
 ```bash
-npm test                                   # backend (118 tests on a separate test database) then frontend (28 tests)
+npm test                                   # backend (125 tests on a separate test database) then frontend (32 tests)
 cd displaceos-backend && npm run lint      # syntax check
 cd displaceos-frontend && npm run build    # production bundle
 ```
@@ -75,6 +75,23 @@ cd displaceos-frontend && npm run build    # production bundle
 - Track: a progress stepper, delivered and remaining quantities per item, an ETA only when a team has entered
   one (always labelled as an estimate), and a timeline of every step. A private link can be shared with family.
 - Disaster updates: zones and public alerts with their source, verification flag and update time.
+
+**Emergency SOS: "I need rescue now"**
+- The red **SOS** button in the header shares the person's GPS position (or a typed landmark), what is happening
+  and how many people need help.
+- The SOS pops up full-screen in red on every open DisplaceOS screen: within a second for signed-in users (live
+  connection) and within about 15 seconds for visitors who are not signed in. A red strip stays at the top while it is open.
+- Responders and relief staff see the exact location on a map, the message and the person's phone, with
+  **I'm responding** and **Open in maps**. Everyone else sees only the approximate area and a **Call 112** button.
+- The person sees who is coming and can update their location or say "I'm safe now". The responder closes it as
+  rescued, not found or false alarm, and their phone's position is checked against the SOS location.
+
+**How do we know help really arrived?**
+- At hand-over the responder ticks each item given. Their phone's GPS is compared with the delivery point: within
+  300 m (plus the phone's accuracy) it is **location verified ✓**. Further away, they must write a note, and the
+  hand-over is flagged.
+- The recipient then ticks **"Yes, I received them"**. The request shows a **Done** panel: delivered ✓, location
+  verified ✓, confirmed by the recipient ✓.
 
 **For responders (rescue teams, NGOs, government)** — a separate account type
 - "Join as a responder": register an organisation (an admin verifies it) or join one with the lead's join code
@@ -109,8 +126,8 @@ names by zoom level too.
 
 - No road routing, email or SMS provider is configured. The app says so instead of inventing routes or
   claiming messages were sent.
-- DisplaceOS coordinates supplies. It is **not** an emergency rescue service; the UI points people to local
-  emergency services (112 in India).
+- DisplaceOS coordinates supplies and relays SOS calls to responders who use it. It is **not** a replacement for
+  emergency services; every SOS screen also offers a direct call to 112 (India).
 - Production deployment has not been performed. See `displaceos-backend/docs/deployment.md`.
 
 More detail: `displaceos-backend/README.md`, `displaceos-backend/docs/*`, `displaceos-frontend/README.md`,

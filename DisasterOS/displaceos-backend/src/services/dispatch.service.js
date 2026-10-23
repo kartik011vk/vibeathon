@@ -4,7 +4,7 @@
 //   CANCELLED from CREATED / ASSIGNED / ACCEPTED (reservation is kept so the allocation can be re-dispatched)
 import { prisma } from '../utils/prisma.js';
 import { badRequest, conflict, forbidden, invalidTransition, notFound } from '../utils/errors.js';
-import { haversineKm, hasCoords } from '../utils/geo.js';
+import { checkLocation, haversineKm, hasCoords } from '../utils/geo.js';
 import { pageMeta } from '../utils/pagination.js';
 import { config } from '../config/env.js';
 import { DISPATCH_STATUS_LABELS, Roles } from '../utils/constants.js';
@@ -53,6 +53,7 @@ const dispatchInclude = {
   },
   allocation: { select: { id: true, status: true, sourceLocation: { select: { id: true, name: true, area: true } } } },
   statusEvents: { orderBy: { createdAt: 'asc' }, include: { actor: { select: { fullName: true, role: true } } } },
+  deliveryEvents: { orderBy: { createdAt: 'asc' }, select: { id: true, createdAt: true, locationCheck: true, distanceM: true, isFinal: true } },
 };
 
 function dispatchRooms(d) {
@@ -158,8 +159,20 @@ export async function startDispatch(user, id, req) {
 
 // Records a delivery event. Delivered quantities consume the reserved stock; when the run is closed,
 // any undelivered remainder is released back to available stock.
-export async function completeDispatch(user, id, { lines = [], notes, final }, req) {
-  const d = await findDispatchInScope(user, id, { include: { lines: true, request: { select: { requesterId: true, referenceCode: true } } } });
+const CHECK_LABEL = {
+  VERIFIED: 'location verified',
+  TOO_FAR: 'recorded away from the delivery point',
+  NO_DESTINATION: 'no delivery point on record to compare',
+  NO_LOCATION: 'no phone location shared',
+};
+
+export async function completeDispatch(user, id, { lines = [], notes, final, latitude, longitude, accuracyMeters }, req) {
+  const d = await findDispatchInScope(user, id, {
+    include: {
+      lines: true,
+      request: { select: { requesterId: true, referenceCode: true, latitude: true, longitude: true, camp: { select: { latitude: true, longitude: true } } } },
+    },
+  });
   assertTeamActor(user, d);
   if (!['IN_TRANSIT', 'PARTIALLY_DELIVERED'].includes(d.status)) throw invalidTransition(d.status, 'DELIVERED', 'Dispatch');
 
@@ -176,13 +189,35 @@ export async function completeDispatch(user, id, { lines = [], notes, final }, r
   const deliveredNow = lines.reduce((s, l) => s + l.quantity, 0);
   if (deliveredNow === 0 && !final) throw badRequest('Record at least one delivered quantity, or close the run with final=true');
 
+  // Compare the responder's phone position with the delivery point (request pin, else the camp).
+  const destination = hasCoords(d.request) ? d.request : hasCoords(d.request.camp) ? d.request.camp : null;
+  const check = checkLocation(latitude != null ? { latitude, longitude, accuracyMeters } : null, destination, config.HANDOVER_VERIFY_RADIUS_M);
+  if (check.locationCheck === 'TOO_FAR' && deliveredNow > 0 && !notes?.trim()) {
+    throw badRequest(
+      `You are about ${check.distanceM} m from the delivery point. Add a note explaining where the hand-over happened.`,
+      [{ path: 'notes', message: 'Required when the hand-over is recorded away from the delivery point', distanceM: check.distanceM }],
+    );
+  }
+
   const outcome = await prisma.$transaction(async (tx) => {
     const sourceLocationId = (await tx.allocation.findUnique({ where: { id: d.allocationId } })).sourceLocationId;
     // Lock the dispatch row so two simultaneous delivery reports serialise.
     const locked = await tx.$queryRaw`SELECT "status" FROM "Dispatch" WHERE "id" = ${id}::uuid FOR UPDATE`;
     if (!['IN_TRANSIT', 'PARTIALLY_DELIVERED'].includes(locked[0].status)) throw invalidTransition(locked[0].status, 'DELIVERED', 'Dispatch');
 
-    const event = await tx.deliveryEvent.create({ data: { dispatchId: id, recordedById: user.id, isFinal: Boolean(final), notes } });
+    const event = await tx.deliveryEvent.create({
+      data: {
+        dispatchId: id,
+        recordedById: user.id,
+        isFinal: Boolean(final),
+        notes,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
+        accuracyM: accuracyMeters ?? null,
+        distanceM: check.distanceM,
+        locationCheck: check.locationCheck,
+      },
+    });
     for (const l of lines.filter((x) => x.quantity > 0)) {
       const line = byId.get(l.dispatchLineId);
       const { count } = await tx.dispatchLine.updateMany({
@@ -219,9 +254,18 @@ export async function completeDispatch(user, id, { lines = [], notes, final }, r
           : `Delivery run finished: ${delivered} of ${planned} units handed over`
         : `Partly delivered: ${deliveredNow} units handed over`,
       actor: user,
-      data: { dispatchId: id, deliveredNow, delivered, planned },
+      data: { dispatchId: id, deliveredNow, delivered, planned, locationCheck: check.locationCheck, distanceM: check.distanceM },
     });
-    await audit(tx, { actor: user, action: closing ? 'DISPATCH_COMPLETED' : 'DISPATCH_PARTIAL_DELIVERY', entityType: 'Dispatch', entityId: id, after: { lines, final: Boolean(final), delivered, planned }, req });
+    if (deliveredNow > 0) {
+      await addTimelineEvent(tx, {
+        requestId: d.requestId,
+        type: 'HANDOVER_LOCATION',
+        message: check.locationCheck === 'VERIFIED' ? `Hand-over location verified (within ${check.distanceM} m of the delivery point)` : `Hand-over recorded: ${CHECK_LABEL[check.locationCheck]}`,
+        actor: user,
+        data: { ...check, deliveryEventId: event.id },
+      });
+    }
+    await audit(tx, { actor: user, action: closing ? 'DISPATCH_COMPLETED' : 'DISPATCH_PARTIAL_DELIVERY', entityType: 'Dispatch', entityId: id, after: { lines, final: Boolean(final), delivered, planned, ...check }, req });
     return { to, delivered, planned };
   });
 
@@ -433,6 +477,10 @@ export function shapeDispatch(user, d) {
       distanceBasis: hasLoc && dest ? 'STRAIGHT_LINE' : null,
     },
     eta: etaInfo(d),
+    // Most recent hand-over and whether the responder's phone was at the delivery point.
+    lastHandover: d.deliveryEvents?.length
+      ? (({ createdAt, locationCheck, distanceM }) => ({ at: createdAt, locationCheck, distanceM }))(d.deliveryEvents[d.deliveryEvents.length - 1])
+      : null,
     statusHistory: d.statusEvents?.map((e) => ({
       from: e.fromStatus,
       to: e.toStatus,
@@ -494,6 +542,9 @@ export async function dispatchTracking(user, id) {
       notes: staff ? e.notes : undefined,
       createdAt: e.createdAt,
       lines: e.lines.map((l) => ({ dispatchLineId: l.dispatchLineId, quantity: l.quantity })),
+      locationCheck: e.locationCheck,
+      distanceM: e.distanceM,
+      accuracyM: staff ? e.accuracyM : undefined,
     })),
   };
 }

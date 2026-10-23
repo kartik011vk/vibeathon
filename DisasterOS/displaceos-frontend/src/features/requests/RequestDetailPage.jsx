@@ -1,12 +1,12 @@
 import { lazy, Suspense, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Copy, Link2, Megaphone, Radio, XCircle } from 'lucide-react';
-import { requestsApi } from '../../api/services.js';
+import { ArrowLeft, CheckCircle2, Copy, Link2, Megaphone, Radio, XCircle } from 'lucide-react';
+import { receiptApi, requestsApi } from '../../api/services.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { useLiveRecord } from '../../app/SocketContext.jsx';
 import { useToast } from '../../app/Toast.jsx';
-import { Badge, ErrorState, Loading, Notice, ReasonDialog, SeverityBadge } from '../../components/ui/index.jsx';
+import { Badge, ErrorState, Field, Loading, Notice, ReasonDialog, SeverityBadge } from '../../components/ui/index.jsx';
 import { categoryLabel, formatDateTime, timeAgo } from '../../lib/format.js';
 import { DispatchCard, EtaPanel, ItemsProgress, StatusStepper, Timeline } from '../tracking/TrackingParts.jsx';
 
@@ -126,6 +126,50 @@ function ShareLinks({ requestId }) {
   );
 }
 
+// "Done" summary: delivered, hand-over location verified, and confirmed by the recipient.
+function CompletionPanel({ request, tracking, onChanged }) {
+  const toast = useToast();
+  const [note, setNote] = useState('');
+  const m = useMutation({
+    mutationFn: () => receiptApi.confirm(request.id, note.trim() || undefined),
+    onSuccess: () => (toast('Thank you — receipt confirmed'), onChanged()),
+  });
+  if (!['PARTIALLY_DELIVERED', 'DELIVERED'].includes(request.status)) return null;
+  const handovers = (tracking?.dispatches ?? []).map((d) => d.lastHandover).filter(Boolean);
+  const verified = handovers.some((h) => h.locationCheck === 'VERIFIED');
+  const delivered = request.status === 'DELIVERED';
+  const confirmed = Boolean(request.receiptConfirmedAt);
+  const step = (ok, label) => (
+    <li className={ok ? 'done' : ''}>
+      <span aria-hidden="true">{ok ? '✓' : '○'}</span> {label}
+    </li>
+  );
+  return (
+    <section className={`card stack ${delivered && verified && confirmed ? 'complete-card' : ''}`} aria-labelledby="done-h">
+      <h2 id="done-h" style={{ fontSize: '1.25rem', margin: 0 }}>
+        <CheckCircle2 size={18} aria-hidden="true" /> {delivered && confirmed ? 'Done' : 'Delivery check'}
+      </h2>
+      <ul className="done-steps">
+        {step(delivered, delivered ? 'All supplies delivered' : 'Partly delivered so far')}
+        {step(verified, verified ? 'Hand-over location verified by the team\'s phone' : 'Hand-over location not verified')}
+        {step(confirmed, confirmed ? `Confirmed by the recipient ${formatDateTime(request.receiptConfirmedAt)}` : 'Waiting for the recipient to confirm')}
+      </ul>
+      {request.receiptNote && <p className="small" style={{ margin: 0 }}>“{request.receiptNote}”</p>}
+      {request.isOwn && !confirmed && (
+        <div className="stack">
+          <Field label="Did you receive these supplies? (optional note)">
+            {(a) => <input {...a} className="input" maxLength={500} placeholder="e.g. Received 10 kits, thank you" value={note} onChange={(e) => setNote(e.target.value)} />}
+          </Field>
+          {m.isError && <Notice tone="danger">{m.error.message}</Notice>}
+          <button type="button" className="btn btn-primary" style={{ alignSelf: 'flex-start' }} disabled={m.isPending} onClick={() => m.mutate()}>
+            <CheckCircle2 size={16} /> Yes, I received them
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function RequestDetailPage() {
   const { requestId } = useParams();
   const { user, isStaff } = useAuth();
@@ -225,6 +269,8 @@ export default function RequestDetailPage() {
               </>
             )}
           </section>
+
+          <CompletionPanel request={r} tracking={t} onChanged={refresh} />
 
           {t?.dispatches?.length > 0 && (
             <section className="stack" aria-labelledby="deliveries-h">

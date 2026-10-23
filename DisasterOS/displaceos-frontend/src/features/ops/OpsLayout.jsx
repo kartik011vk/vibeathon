@@ -1,9 +1,10 @@
 import { Navigate, NavLink, Outlet } from 'react-router-dom';
-import { BellRing, Boxes, ClipboardList, Gift, HandHeart, LayoutDashboard, Settings2, Truck } from 'lucide-react';
+import { BellRing, Boxes, ClipboardList, Gift, HandHeart, LayoutDashboard, LifeBuoy, Settings2, Truck } from 'lucide-react';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { ROLE_LABELS } from '../../lib/format.js';
 
 const LINKS = [
+  { to: '/ops/sos', label: 'SOS board', icon: LifeBuoy, roles: ['RESPONSE_TEAM', 'RELIEF_COORDINATOR', 'ADMIN', 'CAMP_MANAGER'] },
   { to: '/ops/overview', label: 'Overview', icon: LayoutDashboard, roles: ['RELIEF_COORDINATOR', 'ADMIN', 'CAMP_MANAGER'] },
   { to: '/ops/requests', label: 'Requests', icon: ClipboardList, roles: ['RELIEF_COORDINATOR', 'ADMIN', 'CAMP_MANAGER', 'INVENTORY_MANAGER', 'RESPONSE_TEAM'] },
   { to: '/ops/alerts', label: 'Alerts', icon: BellRing, roles: ['RELIEF_COORDINATOR', 'ADMIN', 'CAMP_MANAGER', 'INVENTORY_MANAGER', 'RESPONSE_TEAM'] },

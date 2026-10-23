@@ -159,3 +159,18 @@ export const suppliesApi = {
   reject: (id, reason) => api.post(`/supply-offers/${id}/reject`, { reason }).then((r) => r.data),
   cancel: (id, reason) => api.post(`/supply-offers/${id}/cancel`, { reason }).then((r) => r.data),
 };
+
+export const sosApi = {
+  raise: (body) => api.post('/sos', body).then((r) => r.data),
+  active: () => api.get('/sos/active'),
+  mine: () => getData('/sos/mine'),
+  get: (id) => getData(`/sos/${id}`),
+  updateLocation: (id, body) => api.patch(`/sos/${id}/location`, body).then((r) => r.data),
+  respond: (id) => api.post(`/sos/${id}/respond`, {}).then((r) => r.data),
+  resolve: (id, body) => api.post(`/sos/${id}/resolve`, body).then((r) => r.data),
+  cancel: (id, reason) => api.post(`/sos/${id}/cancel`, { reason }).then((r) => r.data),
+};
+
+export const receiptApi = {
+  confirm: (requestId, note) => api.post(`/requests/${requestId}/confirm-receipt`, note ? { note } : {}).then((r) => r.data),
+};

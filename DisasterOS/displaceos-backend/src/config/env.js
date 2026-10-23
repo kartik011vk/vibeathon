@@ -28,6 +28,7 @@ const schema = z.object({
   INVENTORY_STALE_HOURS: intWithDefault(48),
   LOCATION_STALE_MINUTES: intWithDefault(30),
   ETA_DELAY_THRESHOLD_MINUTES: intWithDefault(15),
+  HANDOVER_VERIFY_RADIUS_M: intWithDefault(300),
   PUBLIC_TRACKING_TOKEN_TTL_HOURS: intWithDefault(168),
   ESCALATION_JOB_ENABLED: bool(false),
   ESCALATION_JOB_INTERVAL_SECONDS: intWithDefault(300),

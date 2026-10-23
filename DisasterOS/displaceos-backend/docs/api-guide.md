@@ -160,3 +160,20 @@ REST remains fully usable (polling) when sockets are unavailable.
 | POST `/supply-offers/:id/reject` · `/cancel` | RC/A/IM · donor | |
 
 Socket event `supply:updated` `{ id, status }` goes to staff rooms and the donor's user room.
+
+
+## Emergency SOS and delivery verification (added in v1.2)
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| POST `/sos` | any signed-in user (6 per 15 min per IP) | `{latitude?, longitude?, accuracyMeters?, address?, message, peopleCount}`; location or address required; one open SOS per person. Broadcast `sos:created` to every signed-in socket. |
+| GET `/sos/active` | optional | Public: `{referenceCode, status, areaLabel, peopleCount, createdAt, respondingTeam}`. Responders/staff (RT, CM, RC, A): plus exact position, accuracy, message, requester name and phone. |
+| GET `/sos/mine` · GET `/sos/:id` | owner or responders | History of events. |
+| PATCH `/sos/:id/location` | owner | Update position while open. |
+| POST `/sos/:id/respond` | RT, CM, RC, A | ACTIVE → RESPONDING; one responder at a time (409 otherwise). |
+| POST `/sos/:id/resolve` | the responder, or RC/A | `{outcome: RESCUED|NOT_FOUND|FALSE_ALARM, note, latitude?, longitude?, accuracyMeters?}`; position checked against the SOS location (`locationCheck`). |
+| POST `/sos/:id/cancel` | owner (or RC/A) | "I'm safe now". |
+| POST `/dispatches/:id/complete` | team / RC/A | now also accepts `latitude, longitude, accuracyMeters`. Result stored on the delivery event as `locationCheck` (VERIFIED, TOO_FAR, NO_DESTINATION, NO_LOCATION) and `distanceM`. TOO_FAR requires `notes`. Dispatch responses include `lastHandover`. |
+| POST `/requests/:id/confirm-receipt` | requester | `{note?}`; allowed once when PARTIALLY_DELIVERED or DELIVERED; sets `receiptConfirmedAt`. |
+
+Verification radius: `HANDOVER_VERIFY_RADIUS_M` (default 300) plus the phone's reported accuracy, capped at 500 m.

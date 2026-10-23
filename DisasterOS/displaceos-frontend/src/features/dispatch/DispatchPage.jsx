@@ -1,11 +1,12 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock, PackageCheck, Play, Radio, ThumbsUp } from 'lucide-react';
+import { CheckCircle2, Clock, MapPin, PackageCheck, Play, Radio, ThumbsUp } from 'lucide-react';
 import { dispatchesApi, placesApi, teamsApi, trackingApi } from '../../api/services.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { useToast } from '../../app/Toast.jsx';
 import { useLiveLocation } from '../../hooks/useLiveLocation.js';
+import { useGeolocation } from '../../hooks/useGeolocation.js';
 import { Badge, Dialog, EmptyState, ErrorState, Field, Loading, Notice, PageHead, ReasonDialog, SeverityBadge, Tabs } from '../../components/ui/index.jsx';
 import { categoryLabel, DISPATCH_STATUS, formatDateTime, num, timeAgo } from '../../lib/format.js';
 import { EtaPanel } from '../tracking/TrackingParts.jsx';
@@ -53,44 +54,122 @@ function EtaDialog({ d, onClose, onDone }) {
   );
 }
 
+const VERIFY_RADIUS_M = 300;
+
+function distanceM(a, b) {
+  const rad = (x) => (x * Math.PI) / 180;
+  const h = Math.sin(rad(b.latitude - a.latitude) / 2) ** 2 + Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(rad(b.longitude - a.longitude) / 2) ** 2;
+  return Math.round(2 * 6371000 * Math.asin(Math.sqrt(h)));
+}
+
+// Hand-over checklist: tick what was handed over, and the phone's position is checked against the delivery point.
 function DeliveryDialog({ d, onClose, onDone }) {
+  const geo = useGeolocation();
+  const [ticked, setTicked] = useState(() => Object.fromEntries(d.lines.map((l) => [l.id, false])));
   const [qty, setQty] = useState(() => Object.fromEntries(d.lines.map((l) => [l.id, l.remainingQuantity])));
   const [notes, setNotes] = useState('');
+  useEffect(() => {
+    geo.request();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const destination = d.request?.destination;
+  const here = geo.position;
+  const dist = here && destination ? distanceM(here, destination) : null;
+  const allowed = VERIFY_RADIUS_M + Math.min(here?.accuracyMeters ?? 0, 500);
+  const check = !here ? 'NO_LOCATION' : !destination ? 'NO_DESTINATION' : dist <= allowed ? 'VERIFIED' : 'TOO_FAR';
+
+  const handed = (l) => (ticked[l.id] ? Number(qty[l.id] || 0) : 0);
+  const total = d.lines.reduce((s, l) => s + handed(l), 0);
+  const remainingAfter = d.lines.reduce((s, l) => s + l.remainingQuantity - handed(l), 0);
+  const invalid = d.lines.some((l) => ticked[l.id] && (Number(qty[l.id]) > l.remainingQuantity || Number(qty[l.id]) < 1));
+  const needsNote = check === 'TOO_FAR' && total > 0 && !notes.trim();
+
   const m = useMutation({
     mutationFn: (final) =>
       dispatchesApi.complete(d.id, {
-        lines: d.lines.map((l) => ({ dispatchLineId: l.id, quantity: Number(qty[l.id] || 0) })).filter((l) => l.quantity > 0),
+        lines: d.lines.map((l) => ({ dispatchLineId: l.id, quantity: handed(l) })).filter((l) => l.quantity > 0),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         final,
+        ...(here ? { latitude: here.latitude, longitude: here.longitude, accuracyMeters: here.accuracyMeters } : {}),
       }),
     onSuccess: () => (onDone(), onClose()),
   });
-  const total = d.lines.reduce((s, l) => s + Number(qty[l.id] || 0), 0);
-  const remainingAfter = d.lines.reduce((s, l) => s + l.remainingQuantity - Number(qty[l.id] || 0), 0);
-  const invalid = d.lines.some((l) => Number(qty[l.id]) > l.remainingQuantity || Number(qty[l.id]) < 0);
+
   return (
     <Dialog title="Record hand-over" onClose={onClose}>
       <div className="stack">
-        <p className="small muted">Enter what was actually handed over just now. Partial amounts are fine — the remainder stays on this delivery.</p>
+        <p className="small muted">Tick each item you have handed over. Change the number if only part was given.</p>
         {d.lines.map((l) => (
-          <Field key={l.id} label={`${l.item.name}`} hint={`${l.remainingQuantity} ${l.item.unit} still to hand over (of ${l.quantity})`}>
-            {(a) => <input {...a} className="input" type="number" min="0" max={l.remainingQuantity} value={qty[l.id]} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })} />}
-          </Field>
+          <div key={l.id} className={`handover-line ${ticked[l.id] ? 'done' : ''}`}>
+            <label className="checkbox" style={{ flex: 1 }}>
+              <input type="checkbox" checked={ticked[l.id]} onChange={(e) => setTicked({ ...ticked, [l.id]: e.target.checked })} />
+              <span>
+                <strong>{l.item.name}</strong>
+                <span className="small muted"> · {l.remainingQuantity} {l.item.unit} still to hand over</span>
+              </span>
+            </label>
+            {ticked[l.id] && (
+              <input
+                className="input"
+                style={{ width: 100 }}
+                aria-label={`Quantity of ${l.item.name} handed over`}
+                type="number"
+                min="1"
+                max={l.remainingQuantity}
+                value={qty[l.id]}
+                onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })}
+              />
+            )}
+          </div>
         ))}
-        <Field label="Notes (optional)">{(a) => <input {...a} className="input" maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />}</Field>
-        {remainingAfter > 0 && <Notice>Finishing the run now returns the {remainingAfter} undelivered units to available stock, and coordinators can plan another delivery.</Notice>}
+
+        <div className={`notice ${check === 'VERIFIED' ? 'notice-info' : 'notice-warn'}`} role="status">
+          <MapPin size={20} aria-hidden="true" />
+          <div>
+            {geo.status === 'locating' && <strong>Checking your location…</strong>}
+            {check === 'VERIFIED' && (
+              <>
+                <strong>Location verified ✓</strong>
+                <div className="small">You are about {dist} m from the delivery point (phone accuracy about {here.accuracyMeters} m).</div>
+              </>
+            )}
+            {check === 'TOO_FAR' && (
+              <>
+                <strong>You are about {dist >= 1000 ? `${(dist / 1000).toFixed(1)} km` : `${dist} m`} from the delivery point</strong>
+                <div className="small">The hand-over will be flagged as not at the delivery point. Please explain in the note where it happened.</div>
+              </>
+            )}
+            {check === 'NO_DESTINATION' && geo.status === 'ready' && <strong>This request has no pinned delivery point, so the location cannot be compared.</strong>}
+            {check === 'NO_LOCATION' && geo.status !== 'locating' && (
+              <>
+                <strong>Your location is not available</strong>
+                <div className="small">
+                  The hand-over will be saved as not location-verified.{' '}
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={geo.request}>
+                    Try again
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <Field label={check === 'TOO_FAR' ? 'Note (required)' : 'Note (optional)'} error={needsNote ? 'Say where the hand-over happened' : null}>
+          {(a) => <input {...a} className="input" maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />}
+        </Field>
+        {remainingAfter > 0 && total > 0 && <Notice>Finishing the run now returns the {remainingAfter} undelivered units to available stock, and coordinators can plan another delivery.</Notice>}
         {m.isError && <Notice tone="danger">{m.error.message}</Notice>}
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Back
           </button>
           {remainingAfter > 0 && (
-            <button type="button" className="btn btn-secondary" disabled={m.isPending || invalid || total === 0} onClick={() => m.mutate(false)}>
+            <button type="button" className="btn btn-secondary" disabled={m.isPending || invalid || total === 0 || needsNote || geo.status === 'locating'} onClick={() => m.mutate(false)}>
               Save partial delivery
             </button>
           )}
-          <button type="button" className="btn btn-primary" disabled={m.isPending || invalid} onClick={() => m.mutate(true)}>
-            {remainingAfter > 0 ? 'Save and finish run' : 'Confirm full delivery'}
+          <button type="button" className="btn btn-primary" disabled={m.isPending || invalid || total === 0 || needsNote || geo.status === 'locating'} onClick={() => m.mutate(true)}>
+            <CheckCircle2 size={16} /> {remainingAfter > 0 ? 'Save and finish run' : 'Confirm delivered'}
           </button>
         </div>
       </div>

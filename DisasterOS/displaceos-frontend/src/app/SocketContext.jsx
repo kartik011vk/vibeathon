@@ -29,6 +29,8 @@ const INVALIDATE = {
   'team:updated': [['teams'], ['map']],
   'zone:updated': [['zones']],
   'supply:updated': [['donations'], ['inventory']],
+  'sos:created': [['sos']],
+  'sos:updated': [['sos']],
 };
 
 export function SocketProvider({ children }) {

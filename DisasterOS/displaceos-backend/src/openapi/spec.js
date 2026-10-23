@@ -202,6 +202,15 @@ const paths = {
   '/supply-offers/{offerId}/receive': { post: op({ summary: 'Record counted quantities as stock receipts', tag: 'Donations', roles: ['INVENTORY_MANAGER (receiving location)', 'ADMIN'], params: ['offerId'], body: rv.receiveSupplyBody, errors: [NF, ST] }) },
   '/supply-offers/{offerId}/reject': { post: op({ summary: 'Decline an offer', tag: 'Donations', roles: [...COORD, 'INVENTORY_MANAGER'], params: ['offerId'], body: rv.supplyReasonBody, errors: [NF, ST] }) },
   '/supply-offers/{offerId}/cancel': { post: op({ summary: 'Withdraw your own offer', tag: 'Donations', params: ['offerId'], body: rv.supplyReasonBody, errors: [NF, ST] }) },
+  '/sos': { post: op({ summary: 'Send an emergency rescue SOS (broadcast to every open screen)', tag: 'Emergency', body: rv.raiseSosBody, status: 201, errors: [[409, 'CONFLICT (you already have an active SOS)']] }) },
+  '/sos/active': { get: op({ summary: 'Open SOS calls. Public: area only. Responders and staff: exact position, message, contact', tag: 'Emergency', auth: false }) },
+  '/sos/mine': { get: op({ summary: 'Your own SOS calls', tag: 'Emergency' }) },
+  '/sos/{sosId}': { get: op({ summary: 'SOS detail with history', tag: 'Emergency', params: ['sosId'], errors: [NF] }) },
+  '/sos/{sosId}/location': { patch: op({ summary: 'The person who sent the SOS updates their position', tag: 'Emergency', params: ['sosId'], body: rv.sosLocationBody, errors: [NF, ST] }) },
+  '/sos/{sosId}/respond': { post: op({ summary: 'Take the SOS (one responder at a time)', tag: 'Emergency', roles: ['RESPONSE_TEAM', 'CAMP_MANAGER', ...COORD], params: ['sosId'], errors: [NF, [409, 'CONFLICT (already being handled)']] }) },
+  '/sos/{sosId}/resolve': { post: op({ summary: 'Close as rescued, not found or false alarm; responder position is checked against the SOS location', tag: 'Emergency', roles: ['responding user', ...COORD], params: ['sosId'], body: rv.resolveSosBody, errors: [NF, ST] }) },
+  '/sos/{sosId}/cancel': { post: op({ summary: 'The person reports they are safe (or a coordinator closes it)', tag: 'Emergency', params: ['sosId'], body: rv.supplyReasonBody, errors: [NF, ST] }) },
+  '/requests/{requestId}/confirm-receipt': { post: op({ summary: 'Requester confirms the supplies were received', tag: 'Tracking', roles: ['requester'], params: ['requestId'], body: rv.confirmReceiptBody, errors: [NF, ST] }) },
   '/audit-logs': { get: op({ summary: 'Audit log', tag: 'Audit', roles: ['ADMIN'], query: v.auditQuery }) },
 };
 

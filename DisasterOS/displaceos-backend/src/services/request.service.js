@@ -186,6 +186,8 @@ function shape(user, r) {
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     deliveredAt: r.deliveredAt,
+    receiptConfirmedAt: r.receiptConfirmedAt,
+    receiptNote: r.receiptNote,
   };
 }
 
@@ -501,4 +503,28 @@ export async function revokeTrackingToken(user, requestId, tokenId, req) {
   if (count === 0) throw notFound('Active tracking link');
   await audit(null, { actor: user, action: 'TRACKING_TOKEN_REVOKED', entityType: 'PublicTrackingToken', entityId: tokenId, req });
   return { revoked: true };
+}
+
+// The requester ticks "I received these supplies". Allowed once anything has been delivered.
+export async function confirmReceipt(user, id, { note }, req) {
+  const current = await findRequestInScope(user, id);
+  if (current.requesterId !== user.id) throw forbidden('Only the person who made the request can confirm receipt');
+  if (!['PARTIALLY_DELIVERED', 'DELIVERED'].includes(current.status)) throw invalidTransition(current.status, 'RECEIPT_CONFIRMED', 'Request');
+  const { count } = await prisma.reliefRequest.updateMany({
+    where: { id, receiptConfirmedAt: null, status: { in: ['PARTIALLY_DELIVERED', 'DELIVERED'] } },
+    data: { receiptConfirmedAt: new Date(), receiptNote: note ?? null },
+  });
+  if (count === 0) throw invalidTransition('RECEIPT_CONFIRMED', 'RECEIPT_CONFIRMED', 'Request');
+  await prisma.$transaction(async (tx) => {
+    await addTimelineEvent(tx, { requestId: id, type: 'RECEIPT_CONFIRMED', message: `Recipient confirmed the supplies were received${note ? `: ${note}` : ''}`, actor: user });
+    await audit(tx, { actor: user, action: 'REQUEST_RECEIPT_CONFIRMED', entityType: 'ReliefRequest', entityId: id, after: { note }, req });
+  });
+  emit(requestRooms(current), 'request:updated', { id });
+  await notifyRoles([Roles.RELIEF_COORDINATOR], {
+    type: 'RECEIPT_CONFIRMED',
+    title: `${current.referenceCode}: recipient confirmed delivery`,
+    body: note ?? 'The requester confirmed they received the supplies.',
+    data: { requestId: id },
+  });
+  return getRequest(user, id);
 }

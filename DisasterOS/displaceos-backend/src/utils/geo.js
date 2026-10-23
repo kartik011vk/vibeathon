@@ -23,3 +23,21 @@ export function boundingBox(lat, lng, radiusKm) {
   const dLng = radiusKm / (111 * Math.max(Math.cos((lat * Math.PI) / 180), 0.01));
   return { minLat: lat - dLat, maxLat: lat + dLat, minLng: lng - dLng, maxLng: lng + dLng };
 }
+
+// Compares a responder's reported position with a destination.
+// VERIFIED when within `radiusM` plus the phone's own accuracy margin (capped at 500 m so a very poor fix cannot verify).
+export function checkLocation(position, destination, radiusM) {
+  if (!position || !Number.isFinite(position.latitude) || !Number.isFinite(position.longitude)) {
+    return { locationCheck: 'NO_LOCATION', distanceM: null, allowedM: null };
+  }
+  if (!destination || !Number.isFinite(destination.latitude) || !Number.isFinite(destination.longitude)) {
+    return { locationCheck: 'NO_DESTINATION', distanceM: null, allowedM: null };
+  }
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(destination.latitude - position.latitude);
+  const dLng = rad(destination.longitude - position.longitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(position.latitude)) * Math.cos(rad(destination.latitude)) * Math.sin(dLng / 2) ** 2;
+  const distanceM = Math.round(2 * 6371000 * Math.asin(Math.sqrt(h)));
+  const allowedM = radiusM + Math.min(Math.max(position.accuracyMeters ?? 0, 0), 500);
+  return { locationCheck: distanceM <= allowedM ? 'VERIFIED' : 'TOO_FAR', distanceM, allowedM };
+}
