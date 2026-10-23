@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Building2, ClipboardList, Gift, HandHeart, MapPin, PackageSearch, PhoneCall, Radio, Route, ShieldCheck, Truck } from 'lucide-react';
-import { alertsApi, placesApi } from '../../api/services.js';
+import { alertsApi, hazardsApi, placesApi } from '../../api/services.js';
 import GlobeSection from '../../components/globe/GlobeSection.jsx';
 import { SeverityBadge } from '../../components/ui/index.jsx';
 import { timeAgo } from '../../lib/format.js';
@@ -25,6 +25,27 @@ function AlertStrip() {
           {' '}
           · updated {timeAgo(top.updatedAt)}
           {alerts.length > 1 ? ` · ${alerts.length - 1} more alert${alerts.length > 2 ? 's' : ''}` : ''}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+function LiveIndiaStrip() {
+  const q = useQuery({ queryKey: ['hazards', 'home'], queryFn: () => hazardsApi.list({ activeOnly: true, sinceHours: 72, limit: 300 }), refetchInterval: 120000 });
+  if (!q.data) return null;
+  const items = q.data.data;
+  if (!items.length) return null;
+  const worst = [...items].sort((a, b) => ['NORMAL', 'HIGH', 'RED', 'HYPER_RED'].indexOf(b.severity) - ['NORMAL', 'HIGH', 'RED', 'HYPER_RED'].indexOf(a.severity))[0];
+  const states = [...new Set(items.map((e) => e.state).filter(Boolean))];
+  return (
+    <Link to="/updates#live" className="notice notice-info" style={{ textDecoration: 'none', color: 'inherit', marginTop: 10 }}>
+      <SeverityBadge severity={worst.severity} />
+      <span>
+        <strong>{items.length} live alerts across India</strong>
+        <span className="small muted">
+          {' '}
+          · {states.length ? `${states.slice(0, 4).join(', ')}${states.length > 4 ? ` and ${states.length - 4} more` : ''}` : 'see map'} · most serious: {worst.title}{worst.state ? ` (${worst.state})` : ''}
         </span>
       </span>
     </Link>
@@ -108,6 +129,7 @@ export default function HomePage() {
               </Link>
             </div>
             <AlertStrip />
+            <LiveIndiaStrip />
           </div>
           <GlobeSection />
         </div>

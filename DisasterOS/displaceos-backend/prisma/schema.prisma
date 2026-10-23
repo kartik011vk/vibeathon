@@ -1005,3 +1005,43 @@ model SosEvent {
 
   @@index([sosId, createdAt])
 }
+
+// ─── Live hazard feeds (India) ────────────────────────────────────────────
+
+// One event from an external feed (NDMA SACHET, USGS, GDACS), normalised. Re-polling updates it in place.
+model HazardFeedEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  source          String
+  externalId      String
+  hazardType      String
+  title           String
+  areaDescription String?
+  state           String?
+  latitude        Float?
+  longitude       Float?
+  severity        Severity
+  sourceSeverity  String?
+  magnitude       Float?
+  isOfficial      Boolean   @default(false)
+  startsAt        DateTime  @db.Timestamptz(3)
+  expiresAt       DateTime? @db.Timestamptz(3)
+  sourceUrl       String?
+  instruction     String?
+  disasterZoneId  String?   @db.Uuid
+  firstSeenAt     DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt      DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@unique([source, externalId])
+  @@index([startsAt])
+  @@index([severity])
+  @@index([hazardType])
+}
+
+// Health of each feed, so the UI can say when a source is unreachable instead of showing stale data as live.
+model HazardFeedStatus {
+  source        String    @id
+  lastAttemptAt DateTime? @db.Timestamptz(3)
+  lastSuccessAt DateTime? @db.Timestamptz(3)
+  lastError     String?
+  lastCount     Int       @default(0)
+}

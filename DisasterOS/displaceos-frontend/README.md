@@ -15,7 +15,7 @@ The backend must be running first (see `../displaceos-backend/README.md`, or `np
 npm install
 cp .env.example .env     # defaults work for local development
 npm run dev              # http://localhost:5173
-npm test                 # 32 tests
+npm test                 # 36 tests
 npm run build            # production bundle in dist/
 ```
 
@@ -59,6 +59,8 @@ src/test/           Vitest suites
   `/ops/needs` (open needs and offers), `/donate`, `/donations`, `/ops/donations`. Teams share live location with
   `useLiveLocation` (watchPosition, at most every 15 s). Requesters see the live map only while the backend marks
   `location.sharedWithRequester`.
+- **Live India alerts**: `src/features/hazards/LiveIndiaFeed.jsx` (Disaster updates page, globe markers, home strip)
+  and `HazardPopup` (global; shows each new high-impact event once, dismissals kept in localStorage).
 - **SOS**: `SosAlertLayer` (in the layout) polls `/sos/active` every 15 s and is refreshed instantly by
   `sos:created` / `sos:updated` socket events. It shows a full-screen red alert (vibration on phones) plus a sticky
   strip. Responders get the exact location, message, contact and "I'm responding"; everyone else gets the area and

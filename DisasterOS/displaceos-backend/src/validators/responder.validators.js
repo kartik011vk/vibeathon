@@ -98,3 +98,20 @@ export const resolveSosBody = z
   .strict()
   .refine((v) => (v.latitude == null) === (v.longitude == null), { message: 'Provide both latitude and longitude, or neither', path: ['latitude'] });
 export const confirmReceiptBody = z.object({ note: text(500).optional() }).strict();
+
+// Live hazard feeds
+const HAZARD_TYPES = ['EARTHQUAKE', 'FLOOD', 'CYCLONE', 'TSUNAMI', 'LANDSLIDE', 'THUNDERSTORM', 'LIGHTNING', 'HEAVY_RAIN', 'HEATWAVE', 'COLD_WAVE', 'WILDFIRE', 'DROUGHT', 'VOLCANO', 'OTHER'];
+export const listHazardsQuery = z
+  .object({
+    source: z.enum(['NDMA_SACHET', 'USGS', 'GDACS']).optional(),
+    type: z.preprocess((v) => (v == null || v === '' ? undefined : String(v).split(',')), z.array(z.enum(HAZARD_TYPES)).optional()),
+    minSeverity: z.enum(['NORMAL', 'HIGH', 'RED', 'HYPER_RED']).optional(),
+    activeOnly: z.preprocess((v) => v !== 'false' && v !== '0', z.boolean()),
+    sinceHours: z.coerce.number().int().min(1).max(24 * 45).default(72),
+    latitude: queryLat.optional(),
+    longitude: queryLng.optional(),
+    radiusKm: z.coerce.number().positive().max(2000).default(150),
+    limit: z.coerce.number().int().min(1).max(300).default(150),
+  })
+  .refine((v) => (v.latitude == null) === (v.longitude == null), { message: 'Provide both latitude and longitude', path: ['latitude'] });
+export const hazardZoneBody = z.object({ radiusKm: z.number().positive().max(2000).optional(), name: text(120, 3).optional() }).strict();

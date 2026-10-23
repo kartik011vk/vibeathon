@@ -60,7 +60,7 @@ resets the database to this demo state.
 ## Tests
 
 ```bash
-npm test                                   # backend (125 tests on a separate test database) then frontend (32 tests)
+npm test                                   # backend (130 tests on a separate test database) then frontend (36 tests)
 cd displaceos-backend && npm run lint      # syntax check
 cd displaceos-frontend && npm run build    # production bundle
 ```
@@ -76,7 +76,22 @@ cd displaceos-frontend && npm run build    # production bundle
   one (always labelled as an estimate), and a timeline of every step. A private link can be shared with family.
 - Disaster updates: zones and public alerts with their source, verification flag and update time.
 
-**Emergency SOS: "I need rescue now"**
+**Live disaster alerts across India (automatic)**
+- Every 5 minutes the server reads three live sources, limited to India:
+  - **NDMA SACHET**: the Government of India's official Common Alerting Protocol feed, with warnings from IMD and
+    state disaster authorities (floods, cyclones, heavy rain, lightning, heatwaves…).
+  - **USGS**: earthquakes of magnitude 3+ inside India's boundary or named as India.
+  - **GDACS** (UN/EU): floods, cyclones, earthquakes and droughts affecting India.
+- Disaster updates → **Live alerts across India**: most serious first, filter by type, "official only", "near me",
+  last 7 days, a map of positioned events, and the source and time on every alert. Identical warnings for many
+  blocks or mandals are merged into one card.
+- **Pop-up:** new high-impact events (earthquakes M4.5+, floods, cyclones, landslides, tsunamis, GDACS orange/red,
+  any "Extreme" official warning) pop up on every screen. Routine lightning and rain warnings stay in the list.
+- Coordinators can turn a mapped event into a DisplaceOS disaster zone with one click. Source health is shown, and
+  an unreachable feed is reported, not hidden.
+- Needs internet access on the server. Set `HAZARD_FEEDS_ENABLED=false` to switch it off for offline demos.
+
+**Emergency SOS: "I need rescue now"
 - The red **SOS** button in the header shares the person's GPS position (or a typed landmark), what is happening
   and how many people need help.
 - The SOS pops up full-screen in red on every open DisplaceOS screen: within a second for signed-in users (live
@@ -124,6 +139,8 @@ names by zoom level too.
 
 ## Honest limits
 
+- NDMA SACHET alerts give district or mandal names but no map coordinates (its polygon service refuses outside
+  requests), so they appear in the list but not on the map. Map boundaries are Natural Earth's de facto lines.
 - No road routing, email or SMS provider is configured. The app says so instead of inventing routes or
   claiming messages were sent.
 - DisplaceOS coordinates supplies and relays SOS calls to responders who use it. It is **not** a replacement for

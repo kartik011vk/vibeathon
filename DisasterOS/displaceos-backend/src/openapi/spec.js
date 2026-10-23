@@ -211,6 +211,10 @@ const paths = {
   '/sos/{sosId}/resolve': { post: op({ summary: 'Close as rescued, not found or false alarm; responder position is checked against the SOS location', tag: 'Emergency', roles: ['responding user', ...COORD], params: ['sosId'], body: rv.resolveSosBody, errors: [NF, ST] }) },
   '/sos/{sosId}/cancel': { post: op({ summary: 'The person reports they are safe (or a coordinator closes it)', tag: 'Emergency', params: ['sosId'], body: rv.supplyReasonBody, errors: [NF, ST] }) },
   '/requests/{requestId}/confirm-receipt': { post: op({ summary: 'Requester confirms the supplies were received', tag: 'Tracking', roles: ['requester'], params: ['requestId'], body: rv.confirmReceiptBody, errors: [NF, ST] }) },
+  '/hazards': { get: op({ summary: 'Live hazard events in India from NDMA SACHET (official), USGS and GDACS, with feed health in meta.feeds', tag: 'Live feeds', auth: false, query: rv.listHazardsQuery }) },
+  '/hazards/status': { get: op({ summary: 'Last attempt, last success and last error per feed', tag: 'Live feeds', auth: false }) },
+  '/hazards/refresh': { post: op({ summary: 'Poll all feeds now', tag: 'Live feeds', roles: COORD }) },
+  '/hazards/{hazardId}/zone': { post: op({ summary: 'Create a DisplaceOS disaster zone from a mapped feed event', tag: 'Live feeds', roles: COORD, params: ['hazardId'], body: rv.hazardZoneBody, status: 201, errors: [NF, [409, 'CONFLICT (zone already created)']] }) },
   '/audit-logs': { get: op({ summary: 'Audit log', tag: 'Audit', roles: ['ADMIN'], query: v.auditQuery }) },
 };
 

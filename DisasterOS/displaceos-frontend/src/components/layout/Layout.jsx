@@ -3,6 +3,7 @@ import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Bell, LogIn, LogOut, Menu, Siren, UserRound, X } from 'lucide-react';
 import { SosAlertLayer } from '../../features/sos/SosPages.jsx';
+import { HazardPopup } from '../../features/hazards/LiveIndiaFeed.jsx';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { useSocket } from '../../app/SocketContext.jsx';
 import { notificationsApi } from '../../api/services.js';
@@ -147,6 +148,7 @@ export default function Layout() {
       </a>
       <Header />
       <SosAlertLayer />
+      <HazardPopup />
       <main id="main" tabIndex={-1}>
         <Outlet />
       </main>

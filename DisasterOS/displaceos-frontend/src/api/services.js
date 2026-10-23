@@ -174,3 +174,10 @@ export const sosApi = {
 export const receiptApi = {
   confirm: (requestId, note) => api.post(`/requests/${requestId}/confirm-receipt`, note ? { note } : {}).then((r) => r.data),
 };
+
+export const hazardsApi = {
+  list: (q) => api.get('/hazards', q, { auth: false }),
+  status: () => getData('/hazards/status', undefined, { auth: false }),
+  refresh: () => api.post('/hazards/refresh', {}).then((r) => r.data),
+  createZone: (id, body = {}) => api.post(`/hazards/${id}/zone`, body).then((r) => r.data),
+};

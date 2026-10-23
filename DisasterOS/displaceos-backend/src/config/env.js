@@ -31,6 +31,8 @@ const schema = z.object({
   HANDOVER_VERIFY_RADIUS_M: intWithDefault(300),
   PUBLIC_TRACKING_TOKEN_TTL_HOURS: intWithDefault(168),
   ESCALATION_JOB_ENABLED: bool(false),
+  HAZARD_FEEDS_ENABLED: bool(true),
+  HAZARD_FEED_INTERVAL_MINUTES: intWithDefault(5),
   ESCALATION_JOB_INTERVAL_SECONDS: intWithDefault(300),
   EMAIL_PROVIDER: z.string().optional().default(''),
   SMS_PROVIDER: z.string().optional().default(''),

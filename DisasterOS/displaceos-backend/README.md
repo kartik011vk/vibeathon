@@ -98,7 +98,7 @@ tests/         Vitest + Supertest suites        docs/          architecture, API
 
 - `npm run db:migrate` and `npm run db:seed` on a fresh database (seed drives the real services end to end).
 - `npm run dev`: server starts, `/api/v1/health` returns `database: up`.
-- `npm test` → **10 test files, 125 tests passed** (SOS and hand-over verification added in v1.2) (responder onboarding, offers, donations and live-location rules added in v1.1): auth (hashing, register-cannot-pick-role, refresh rotation and
+- `npm test` → **11 test files, 130 tests passed** (live India hazard feeds added in v1.3; feed tests use recorded samples, no network) (responder onboarding, offers, donations and live-location rules added in v1.1): auth (hashing, register-cannot-pick-role, refresh rotation and
   reuse detection, logout, deactivation), permissions (401s, ownership/camp scope → 404, role changes admin-only
   and audited), request lifecycle and timeline, severity rules and RED/HYPER_RED alerts, alert persistence when
   notification delivery throws, inventory ledger and invariants, concurrent allocation approvals (no overselling,

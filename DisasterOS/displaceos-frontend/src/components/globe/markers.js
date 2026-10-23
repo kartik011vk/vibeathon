@@ -1,6 +1,7 @@
 import { haversineKm, validPoint } from '../../lib/geo.js';
 
 export const MARKER_KINDS = {
+  hazard: { label: 'Live alert (NDMA / USGS / GDACS)', color: '#8F2C0B', priority: 6 },
   zone: { label: 'Disaster zone', color: '#C2561A', priority: 5 },
   request: { label: 'Your request', color: '#F4AE37', priority: 4 },
   camp: { label: 'Camp or shelter', color: '#FFF9ED', priority: 3 },

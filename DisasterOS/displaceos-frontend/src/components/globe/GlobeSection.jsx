@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Globe2, Map as MapIcon, Minus, Pause, Play, Plus, X } from 'lucide-react';
-import { placesApi } from '../../api/services.js';
+import { hazardsApi, placesApi } from '../../api/services.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { HAZARD_LABELS, LOCATION_TYPES, REQUEST_STATUS } from '../../lib/format.js';
 import { SeverityBadge } from '../ui/index.jsx';
@@ -39,6 +39,7 @@ function useMarkers() {
   const resources = useQuery({ queryKey: ['map', 'resources'], queryFn: () => placesApi.mapResources() });
   const zones = useQuery({ queryKey: ['zones', 'open'], queryFn: () => placesApi.zones({ status: 'ACTIVE,MONITORING' }) });
   const requests = useQuery({ queryKey: ['map', 'requests', user?.id], queryFn: () => placesApi.mapRequests(), enabled: Boolean(user) });
+  const hazards = useQuery({ queryKey: ['hazards', 'globe'], queryFn: () => hazardsApi.list({ activeOnly: true, sinceHours: 72, limit: 100 }), refetchInterval: 120000 });
   const teams = useQuery({ queryKey: ['map', 'teams'], queryFn: () => placesApi.mapTeams(), enabled: hasRole('RELIEF_COORDINATOR', 'ADMIN') });
 
   const markers = useMemo(() => {
@@ -82,6 +83,20 @@ function useMarkers() {
         action: 'Open request',
       });
     }
+    for (const h of hazards.data?.data ?? []) {
+      if (h.latitude == null) continue;
+      list.push({
+        id: `hz-${h.id}`,
+        kind: 'hazard',
+        latitude: h.latitude,
+        longitude: h.longitude,
+        label: h.title,
+        sub: `${h.areaDescription?.slice(0, 80) ?? ''} · ${h.source.replace('_', ' ')}`,
+        severity: h.severity,
+        to: `/updates#hazard-${h.id}`,
+        action: 'Read alert',
+      });
+    }
     for (const t of teams.data ?? []) {
       list.push({
         id: `team-${t.id}`,
@@ -95,7 +110,7 @@ function useMarkers() {
       });
     }
     return list;
-  }, [resources.data, zones.data, requests.data, teams.data, user]);
+  }, [resources.data, zones.data, requests.data, teams.data, hazards.data, user]);
 
   return { markers, loading: resources.isPending || zones.isPending, error: resources.error || zones.error };
 }

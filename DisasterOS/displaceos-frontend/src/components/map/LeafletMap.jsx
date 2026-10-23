@@ -15,12 +15,12 @@ const icon = (kind) =>
     popupAnchor: [0, -24],
   });
 
-function FitBounds({ points, padKey }) {
+function FitBounds({ points, padKey, singleZoom = 13, maxZoom = 14 }) {
   const map = useMap();
   useEffect(() => {
     const valid = points.filter(validPoint);
-    if (valid.length === 1) map.setView([valid[0].latitude, valid[0].longitude], 13);
-    else if (valid.length > 1) map.fitBounds(L.latLngBounds(valid.map((p) => [p.latitude, p.longitude])), { padding: [36, 36], maxZoom: 14 });
+    if (valid.length === 1) map.setView([valid[0].latitude, valid[0].longitude], singleZoom);
+    else if (valid.length > 1) map.fitBounds(L.latLngBounds(valid.map((p) => [p.latitude, p.longitude])), { padding: [36, 36], maxZoom });
   }, [padKey]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
@@ -49,7 +49,7 @@ function ClickToPick({ onPick }) {
   return null;
 }
 
-export default function LeafletMap({ markers = [], you, circles = [], onPick, tall, label = 'Map', fallbackCenter = [22.5, 79], fallbackZoom = 4 }) {
+export default function LeafletMap({ markers = [], you, circles = [], onPick, tall, label = 'Map', fallbackCenter = [22.5, 79], fallbackZoom = 4, singleZoom = 13, maxZoom = 14 }) {
   const placed = markers.filter(validPoint);
   const points = [...placed, ...(validPoint(you) ? [you] : [])];
   const key = points.map((p) => `${p.latitude},${p.longitude}`).join('|');
@@ -60,7 +60,7 @@ export default function LeafletMap({ markers = [], you, circles = [], onPick, ta
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds points={points} padKey={key} />
+        <FitBounds points={points} padKey={key} singleZoom={singleZoom} maxZoom={maxZoom} />
         <ModifierWheelZoom />
         <ScaleControl position="bottomleft" imperial={false} />
         {onPick && <ClickToPick onPick={onPick} />}

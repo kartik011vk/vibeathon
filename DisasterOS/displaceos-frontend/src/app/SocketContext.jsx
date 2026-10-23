@@ -31,6 +31,8 @@ const INVALIDATE = {
   'supply:updated': [['donations'], ['inventory']],
   'sos:created': [['sos']],
   'sos:updated': [['sos']],
+  'hazard:new': [['hazards']],
+  'hazard:updated': [['hazards']],
 };
 
 export function SocketProvider({ children }) {

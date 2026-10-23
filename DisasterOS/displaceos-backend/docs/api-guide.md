@@ -177,3 +177,26 @@ Socket event `supply:updated` `{ id, status }` goes to staff rooms and the donor
 | POST `/requests/:id/confirm-receipt` | requester | `{note?}`; allowed once when PARTIALLY_DELIVERED or DELIVERED; sets `receiptConfirmedAt`. |
 
 Verification radius: `HANDOVER_VERIFY_RADIUS_M` (default 300) plus the phone's reported accuracy, capped at 500 m.
+
+
+## Live hazard feeds for India (added in v1.3)
+
+`src/jobs/hazardFeed.job.js` polls every `HAZARD_FEED_INTERVAL_MINUTES` (default 5) when `HAZARD_FEEDS_ENABLED`
+(default true). Adapters live in `src/adapters/hazards/` and normalise each source; `india.js` checks points against
+India's boundary (Natural Earth 1:50m).
+
+| Source | Endpoint used | India filter | Severity mapping |
+|---|---|---|---|
+| NDMA SACHET (official) | `rss_india.xml` + each new item's CAP XML | India-only feed | Extreme→HYPER_RED, Severe→RED, Moderate→HIGH, Minor→NORMAL |
+| USGS | FDSN event query, M≥3, last 7 days, India bounding box | inside India's polygon or "India" in the place name | PAGER colour if present, else M≥6.5 HYPER_RED, ≥5.5 RED, ≥4.5 HIGH |
+| GDACS | `geteventlist/SEARCH?country=India`, last 45 days | affected country IND | Red→HYPER_RED, Orange→RED, Green→NORMAL |
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| GET `/hazards` | public | `source, type (csv), minSeverity, activeOnly (default true), sinceHours (72), latitude/longitude/radiusKm, limit`. `meta.feeds` reports each source's health. Each item has `popup` (whether it interrupts screens). |
+| GET `/hazards/status` | public | Last attempt, last success, last error and count per source. |
+| POST `/hazards/refresh` | RC/A | Poll now. |
+| POST `/hazards/:id/zone` | RC/A | Creates a disaster zone from a mapped event (`isVerified` = official source). |
+
+Socket events: `hazard:new` (pop-up-worthy event that started in the last 2 hours) and `hazard:updated`.
+Only new CAP documents are downloaded (at most 40 per run). A failed source never blocks the others.

@@ -3,6 +3,7 @@ import { config } from './config/env.js';
 import { createApp } from './app.js';
 import { createSocketServer } from './sockets/index.js';
 import { startEscalationJob } from './jobs/escalation.job.js';
+import { startHazardFeedJob } from './jobs/hazardFeed.job.js';
 import { prisma } from './utils/prisma.js';
 import { logger } from './utils/logger.js';
 
@@ -18,6 +19,7 @@ try {
 }
 
 startEscalationJob();
+startHazardFeedJob();
 
 httpServer.listen(config.PORT, () => {
   logger.info(`DisplaceOS API listening on http://localhost:${config.PORT}/api/v1`);

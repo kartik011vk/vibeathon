@@ -4,6 +4,7 @@ import { BadgeCheck, CircleHelp, PhoneCall, Radio } from 'lucide-react';
 import { alertsApi, placesApi } from '../../api/services.js';
 import { EmptyState, ErrorState, Loading, Notice, PageHead, SeverityBadge, Badge } from '../../components/ui/index.jsx';
 import { formatDateTime, HAZARD_LABELS, SEVERITY, timeAgo } from '../../lib/format.js';
+import LiveIndiaFeed from '../hazards/LiveIndiaFeed.jsx';
 
 const LeafletMap = lazy(() => import('../../components/map/LeafletMap.jsx'));
 
@@ -52,12 +53,14 @@ export default function DisasterUpdatesPage() {
             Contact local emergency services first — in India, dial <strong>112</strong>. Follow instructions from local authorities. DisplaceOS arranges relief supplies and does not dispatch rescue.
           </Notice>
           <Notice icon={Radio} title="About this information">
-            No external official alert feed is connected to this DisplaceOS server. Everything below was entered by relief coordinators; check the source line on each item.
+            Live alerts come from NDMA SACHET (the Government of India's official alert feed), USGS (earthquakes) and GDACS (UN/EU). Areas and alerts further down are published by DisplaceOS relief coordinators. Every item shows its source.
           </Notice>
         </div>
 
+        <LiveIndiaFeed />
+
         <section aria-labelledby="alerts-h">
-          <h2 id="alerts-h">Current alerts</h2>
+          <h2 id="alerts-h">Alerts from DisplaceOS coordinators</h2>
           {alerts.isPending && <Loading rows={2} />}
           {alerts.isError && <ErrorState error={alerts.error} onRetry={alerts.refetch} />}
           {alerts.data && publicAlerts.length === 0 && <EmptyState title="No public alerts right now">When coordinators publish an area-wide alert it will appear here.</EmptyState>}

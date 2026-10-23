@@ -4,6 +4,7 @@ import * as offers from '../services/offer.service.js';
 import * as supplies from '../services/supplyOffer.service.js';
 import * as sos from '../services/sos.service.js';
 import { confirmReceipt } from '../services/request.service.js';
+import * as hazards from '../services/hazard.service.js';
 import { REFRESH_COOKIE, refreshCookieOptions } from './auth.controller.js';
 import { config } from '../config/env.js';
 import { created, ok } from '../utils/respond.js';
@@ -81,3 +82,13 @@ export const sosCtl = {
 };
 
 export const confirmReceiptCtl = async (req, res) => ok(res, await confirmReceipt(req.user, p(req, 'requestId'), req.valid.body, req));
+
+export const hazardCtl = {
+  list: async (req, res) => {
+    const [{ items, total }, feeds] = await Promise.all([hazards.listHazards(req.valid.query), hazards.feedStatus()]);
+    ok(res, items, { total, feeds, region: 'India' });
+  },
+  status: async (req, res) => ok(res, await hazards.feedStatus()),
+  refresh: async (req, res) => ok(res, await hazards.runFeeds()),
+  zone: async (req, res) => created(res, await hazards.createZone(req.user, p(req, 'hazardId'), req.valid.body, req)),
+};

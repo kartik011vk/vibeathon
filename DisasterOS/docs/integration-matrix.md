@@ -56,6 +56,16 @@ Status key:
 | Ops · donations accept / count in / decline | `POST /supply-offers/:id/accept|receive|reject` | RC/A/IM; receive = IM of the location or admin | unmapped items must be matched; wrong location → 403 | VERIFIED (browser, tests) |
 | Globe · zoom, borders, place names, search | static Natural Earth data in `src/data/` (lazy chunks) | anyone | flat map fallback | VERIFIED (browser screenshots at three zoom levels) |
 
+## Live India hazard feeds (v1.3)
+
+| Screen · action | Method & route / event | Roles | Error and empty handling | Status |
+|---|---|---|---|---|
+| Disaster updates · Live alerts across India | `GET /hazards` (60 s refresh, `hazard:*` events) | public | source health shown; unreachable feed named; empty state | VERIFIED (browser on live data: 3 feeds healthy, 34 active alerts) |
+| Filters: type, official only, near me, last 7 days | `GET /hazards?type&source&latitude&longitude&radiusKm&activeOnly&sinceHours` | public | near me needs GPS consent; NDMA items are unmapped | VERIFIED (tests) |
+| Pop-up for new high-impact events | `GET /hazards?sinceHours=3` + `hazard:new` | everyone | once per event; dismissal remembered | VERIFIED (browser with a temporary test event, then deleted) |
+| Create disaster zone from an event | `POST /hazards/:id/zone` | RC/A | unmapped → 400; twice → 409 | VERIFIED (tests) |
+| Home strip and globe markers | `GET /hazards?activeOnly=true` | public | hidden when nothing is active | VERIFIED (browser) |
+
 ## Emergency SOS and delivery verification (v1.2)
 
 | Screen · action | Method & route / event | Roles | Error and empty handling | Status |

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { confirmReceiptCtl, offerCtl, orgCtl, sosCtl, supplyCtl } from '../controllers/responder.controller.js';
+import { confirmReceiptCtl, hazardCtl, offerCtl, orgCtl, sosCtl, supplyCtl } from '../controllers/responder.controller.js';
 import { authenticate, optionalAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { publicReadLimiter, registerLimiter, sosLimiter } from '../middleware/rateLimit.js';
@@ -61,3 +61,10 @@ sosRouter.patch('/:sosId/location', validate({ ...sid, body: v.sosLocationBody }
 sosRouter.post('/:sosId/respond', requireRole(...SOS_ROLES), validate(sid), sosCtl.respond);
 sosRouter.post('/:sosId/resolve', requireRole(...SOS_ROLES), validate({ ...sid, body: v.resolveSosBody }), sosCtl.resolve);
 sosRouter.post('/:sosId/cancel', validate({ ...sid, body: v.supplyReasonBody }), sosCtl.cancel);
+
+// Live hazard feeds for India
+export const hazardsRouter = Router();
+hazardsRouter.get('/', publicReadLimiter, validate({ query: v.listHazardsQuery }), hazardCtl.list);
+hazardsRouter.get('/status', publicReadLimiter, hazardCtl.status);
+hazardsRouter.post('/refresh', authenticate, requireRole(...COORD), hazardCtl.refresh);
+hazardsRouter.post('/:hazardId/zone', authenticate, requireRole(...COORD), validate({ params: idParam('hazardId'), body: v.hazardZoneBody }), hazardCtl.zone);
