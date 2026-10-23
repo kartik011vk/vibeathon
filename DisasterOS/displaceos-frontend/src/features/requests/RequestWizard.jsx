@@ -207,6 +207,14 @@ function PlaceStep({ place, setPlace, errors, user }) {
                 Location found (accuracy about {geo.position.accuracyMeters} m): <span className="code">{geo.position.latitude}, {geo.position.longitude}</span>
               </p>
             )}
+            {geo.status === 'ready' && geo.position.accuracyMeters > 100 && (
+              <Notice tone="warn" title="This location is not very precise">
+                Your device could only place you within about {geo.position.accuracyMeters} m. Add an address or landmark below, or{' '}
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPlace({ ...place, mode: 'manual' })}>
+                  drop a pin on the map
+                </button>
+              </Notice>
+            )}
             {geo.error && (
               <Notice tone="warn" title="Location not shared">
                 {geo.error}{' '}

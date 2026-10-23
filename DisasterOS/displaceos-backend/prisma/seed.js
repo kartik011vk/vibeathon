@@ -11,6 +11,9 @@ import * as inventory from '../src/services/inventory.service.js';
 import * as allocations from '../src/services/allocation.service.js';
 import * as dispatches from '../src/services/dispatch.service.js';
 import * as alerts from '../src/services/alert.service.js';
+import * as orgs from '../src/services/organization.service.js';
+import * as offers from '../src/services/offer.service.js';
+import * as supplies from '../src/services/supplyOffer.service.js';
 
 export const DEMO_PASSWORD = 'DemoPass2026!';
 
@@ -259,8 +262,46 @@ async function main() {
   }, req);
   await requests.cancelRequest(citizen2, r5.id, 'Relatives received kits at the camp instead (demo)', req);
 
+  // ─── Responder organisations (through the real onboarding flow) ────
+  const ngo = await orgs.registerOrganization({
+    organization: { name: 'Himalayan Aid Network (demo)', type: 'NGO', area: 'Dehradun and Rishikesh', contactPhone: '+91 90000 00010', description: 'Demo NGO with two vans and trained volunteers.' },
+    account: { fullName: 'Ritu Pant (demo NGO lead)', email: 'responder@displaceos.dev', password: DEMO_PASSWORD },
+  }, req);
+  await orgs.approveOrganization(admin, ngo.organization.id, { note: 'Registration documents checked (demo)' }, req);
+  const ngoLead = await actor('responder@displaceos.dev');
+  const { joinCode } = await orgs.rotateJoinCode(ngoLead, req);
+  await orgs.joinOrganization({ joinCode, account: { fullName: 'Aman Rawat (demo volunteer, pending)', email: 'volunteer@displaceos.dev', password: DEMO_PASSWORD } }, req);
+  await prisma.responseTeam.updateMany({ where: { organizationId: ngo.organization.id }, data: { baseLocationId: rishikeshDp.id, lastLatitude: 30.21, lastLongitude: 78.18, lastLocationAt: new Date() } });
+  await orgs.registerOrganization({
+    organization: { name: 'Clement Town Youth Volunteers (demo)', type: 'VOLUNTEER_GROUP', area: 'Clement Town, Dehradun', contactPhone: '+91 90000 00020' },
+    account: { fullName: 'Sahil Gusain (demo, awaiting approval)', email: 'ngo.pending@displaceos.dev', password: DEMO_PASSWORD },
+  }, req);
+  // The approved NGO offers to deliver the verified medicine request.
+  await offers.createOffer(await actor('responder@displaceos.dev'), r3.id, { teamId: (await actor('responder@displaceos.dev')).teamIds[0], note: 'Van free this afternoon; we can collect from Doiwala (demo).', ownSupplies: false }, req);
+
+  // ─── Supply donations ────────────────────────────────────────────
+  await prisma.user.create({ data: { email: 'donor@displaceos.dev', fullName: 'Neelam Kapoor (demo donor)', role: 'CITIZEN', passwordHash, preference: { create: {} } } });
+  const donor = await actor('donor@displaceos.dev');
+  const received = await supplies.createOffer(donor, {
+    donorName: 'Kapoor General Store (demo)',
+    deliveryMode: 'DROP_OFF',
+    notes: 'Left over from our monsoon drive.',
+    lines: [{ inventoryItemId: items['HYG-FAMILY'].id, quantity: 20 }, { inventoryItemId: items['SHELTER-BLANKET'].id, quantity: 40 }],
+  }, req);
+  await supplies.acceptOffer(coord, received.id, { receivingLocationId: warehouse.id, note: 'Use the side gate (demo)' }, req);
+  await supplies.receiveOffer(inv, received.id, { lines: received.lines.map((l) => ({ lineId: l.id, receivedQuantity: l.quantity })), note: 'All counted (demo)' }, req);
+  await supplies.createOffer(donor, {
+    donorName: 'Kapoor General Store (demo)',
+    deliveryMode: 'PICKUP',
+    pickupAddress: 'Shop 12, Paltan Bazaar, Dehradun (demo)',
+    latitude: 30.322,
+    longitude: 78.041,
+    notes: 'Can load into a van between 10am and 4pm.',
+    lines: [{ inventoryItemId: items['WATER-20L'].id, quantity: 60 }, { name: 'Glucose biscuits', unit: 'cartons', quantity: 15 }],
+  }, req);
+
   console.log('\nDemo accounts (development only) — password for all:', DEMO_PASSWORD);
-  for (const email of ['admin', 'coordinator', 'camp.manager', 'inventory', 'team.alpha', 'team.bravo', 'citizen', 'citizen2']) {
+  for (const email of ['admin', 'coordinator', 'camp.manager', 'inventory', 'team.alpha', 'team.bravo', 'citizen', 'citizen2', 'responder', 'volunteer', 'ngo.pending', 'donor']) {
     console.log(`  ${email}@displaceos.dev`);
   }
   console.log('\nSeed complete.');

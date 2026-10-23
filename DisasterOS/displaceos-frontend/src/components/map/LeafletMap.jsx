@@ -1,7 +1,7 @@
 // Real street map (OpenStreetMap tiles, warm-filtered via CSS) with DisplaceOS markers.
 // Tiles need internet access; markers and lists still work if tiles fail to load.
 import { useEffect } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, Circle, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, Popup, TileLayer, Circle, ScaleControl, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { validPoint } from '../../lib/geo.js';
@@ -25,6 +25,23 @@ function FitBounds({ points, padKey }) {
   return null;
 }
 
+// Ctrl/⌘ + wheel zooms the map; a plain wheel keeps scrolling the page.
+function ModifierWheelZoom() {
+  const map = useMap();
+  useEffect(() => {
+    const el = map.getContainer();
+    const onWheel = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const point = map.mouseEventToContainerPoint(e);
+      map.setZoomAround(point, map.getZoom() + (e.deltaY < 0 ? 1 : -1));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [map]);
+  return null;
+}
+
 function ClickToPick({ onPick }) {
   useMapEvents({
     click: (e) => onPick?.({ latitude: Math.round(e.latlng.lat * 1e6) / 1e6, longitude: Math.round(e.latlng.lng * 1e6) / 1e6 }),
@@ -44,13 +61,15 @@ export default function LeafletMap({ markers = [], you, circles = [], onPick, ta
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBounds points={points} padKey={key} />
+        <ModifierWheelZoom />
+        <ScaleControl position="bottomleft" imperial={false} />
         {onPick && <ClickToPick onPick={onPick} />}
         {circles.map((c) => (
           <Circle
             key={c.id}
             center={[c.latitude, c.longitude]}
             radius={c.radiusKm * 1000}
-            pathOptions={{ color: '#c2561a', weight: 2, fillColor: '#dd6f25', fillOpacity: 0.12, dashArray: '6 6' }}
+            pathOptions={c.pathOptions ?? { color: '#c2561a', weight: 2, fillColor: '#dd6f25', fillOpacity: 0.12, dashArray: '6 6' }}
           />
         ))}
         {placed.map((m) => (

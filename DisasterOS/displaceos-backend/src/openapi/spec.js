@@ -5,6 +5,7 @@ import * as authV from '../validators/auth.validators.js';
 import * as reqV from '../validators/request.validators.js';
 import * as v from '../validators/ops.validators.js';
 import { reasonBody } from '../validators/common.js';
+import * as rv from '../validators/responder.validators.js';
 
 const js = (schema) => {
   const { $schema, ...rest } = zodToJsonSchema(schema, { target: 'openApi3', $refStrategy: 'none' });
@@ -177,6 +178,30 @@ const paths = {
   '/dashboard/critical-needs': { get: op({ summary: 'Open HIGH/RED/HYPER_RED requests', tag: 'Dashboard', roles: [...COORD, 'CAMP_MANAGER'] }) },
   '/dashboard/resource-distribution': { get: op({ summary: 'Stock and delivery totals by category and location', tag: 'Dashboard', roles: [...COORD, 'INVENTORY_MANAGER'] }) },
   '/dashboard/response-times': { get: op({ summary: 'Average/median stage durations', tag: 'Dashboard', roles: COORD, query: v.responseTimesQuery }) },
+  '/organizations/register': { post: op({ summary: 'Register a responder organisation (pending until an admin approves)', tag: 'Responders', auth: false, body: rv.registerOrgBody, status: 201, description: 'Creates the organisation and its lead account. The lead has no responder powers until approval.' }) },
+  '/organizations/join': { post: op({ summary: 'Join an approved organisation with its join code (membership pending)', tag: 'Responders', auth: false, body: rv.joinOrgBody, status: 201, errors: [NF] }) },
+  '/organizations/mine': { get: op({ summary: 'Your organisation, status, teams (and members if you are the lead)', tag: 'Responders', errors: [NF] }) },
+  '/organizations/mine/join-code': { post: op({ summary: 'Generate a new join code (shown once; replaces the old one)', tag: 'Responders', roles: ['approved organisation lead'] }) },
+  '/organizations/mine/members/{userId}/decision': { post: op({ summary: 'Approve or reject a pending member', tag: 'Responders', roles: ['approved organisation lead'], params: ['userId'], body: rv.memberDecisionBody, errors: [NF, ST] }) },
+  '/organizations': { get: op({ summary: 'List organisations', tag: 'Responders', roles: COORD, query: rv.listOrgsQuery }) },
+  '/organizations/{organizationId}': { get: op({ summary: 'Organisation detail', tag: 'Responders', roles: COORD, params: ['organizationId'], errors: [NF] }) },
+  '/organizations/{organizationId}/approve': { post: op({ summary: 'Approve: leads become RESPONSE_TEAM and a team is created', tag: 'Responders', roles: ['ADMIN'], params: ['organizationId'], body: rv.approveOrgBody, errors: [NF, ST] }) },
+  '/organizations/{organizationId}/reject': { post: op({ summary: 'Reject a pending organisation', tag: 'Responders', roles: ['ADMIN'], params: ['organizationId'], body: rv.supplyReasonBody, errors: [NF, ST] }) },
+  '/requests/open-needs': { get: op({ summary: 'Verified requests that still need a delivery (no requester identity; ~1 km location)', tag: 'Responders', roles: ['RESPONSE_TEAM', ...COORD], query: rv.openNeedsQuery }) },
+  '/requests/{requestId}/offers': {
+    post: op({ summary: 'Offer to deliver a request on behalf of your team', tag: 'Responders', roles: ['RESPONSE_TEAM'], params: ['requestId'], body: rv.createOfferBody, status: 201, errors: [NF, [409, 'CONFLICT (already offered)']] }),
+    get: op({ summary: 'Offers on a request (teams see their own)', tag: 'Responders', roles: ['RESPONSE_TEAM', ...COORD], params: ['requestId'] }),
+  },
+  '/requests/{requestId}/offers/{offerId}/withdraw': { post: op({ summary: 'Withdraw your team offer', tag: 'Responders', roles: ['RESPONSE_TEAM'], params: ['requestId', 'offerId'], errors: [NF, ST] }) },
+  '/supply-offers': {
+    post: op({ summary: 'Offer supplies as a donor', tag: 'Donations', body: rv.createSupplyBody, status: 201 }),
+    get: op({ summary: 'Your offers (staff: all offers)', tag: 'Donations', query: rv.listSupplyQuery }),
+  },
+  '/supply-offers/{offerId}': { get: op({ summary: 'Offer detail with history and impact after arrival', tag: 'Donations', params: ['offerId'], errors: [NF] }) },
+  '/supply-offers/{offerId}/accept': { post: op({ summary: 'Accept and choose the receiving stock location', tag: 'Donations', roles: [...COORD, 'INVENTORY_MANAGER'], params: ['offerId'], body: rv.acceptSupplyBody, errors: [NF, ST] }) },
+  '/supply-offers/{offerId}/receive': { post: op({ summary: 'Record counted quantities as stock receipts', tag: 'Donations', roles: ['INVENTORY_MANAGER (receiving location)', 'ADMIN'], params: ['offerId'], body: rv.receiveSupplyBody, errors: [NF, ST] }) },
+  '/supply-offers/{offerId}/reject': { post: op({ summary: 'Decline an offer', tag: 'Donations', roles: [...COORD, 'INVENTORY_MANAGER'], params: ['offerId'], body: rv.supplyReasonBody, errors: [NF, ST] }) },
+  '/supply-offers/{offerId}/cancel': { post: op({ summary: 'Withdraw your own offer', tag: 'Donations', params: ['offerId'], body: rv.supplyReasonBody, errors: [NF, ST] }) },
   '/audit-logs': { get: op({ summary: 'Audit log', tag: 'Audit', roles: ['ADMIN'], query: v.auditQuery }) },
 };
 

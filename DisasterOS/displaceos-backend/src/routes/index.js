@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authRouter, usersRouter } from './auth.routes.js';
 import { requestsRouter } from './request.routes.js';
+import { offersRouter, organizationsRouter, supplyOffersRouter } from './responder.routes.js';
 import { alertsRouter, allocationsRouter, dispatchesRouter, inventoryRouter, publicTrackingRouter, teamsRouter } from './ops.routes.js';
 import {
   auditRouter,
@@ -19,7 +20,11 @@ export const apiRouter = Router();
 apiRouter.use('/health', healthRouter);
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/users', usersRouter);
+// Offers router first so /requests/open-needs is not captured by /requests/:requestId.
+apiRouter.use('/requests', offersRouter);
 apiRouter.use('/requests', requestsRouter);
+apiRouter.use('/organizations', organizationsRouter);
+apiRouter.use('/supply-offers', supplyOffersRouter);
 apiRouter.use('/alerts', alertsRouter);
 apiRouter.use('/inventory', inventoryRouter);
 apiRouter.use('/allocations', allocationsRouter);

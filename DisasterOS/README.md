@@ -48,7 +48,11 @@ Password for every account: `DemoPass2026!`. The login page has one-click button
 | `camp.manager@displaceos.dev` | Camp manager (Raipur camp) | Requests for the camp; verify; acknowledge alerts |
 | `inventory@displaceos.dev` | Inventory manager | Stock levels, record receipts and adjustments, approve the pending medicine allocation |
 | `team.alpha@displaceos.dev` / `team.bravo@displaceos.dev` | Response team | Accept and start deliveries; set an ETA; record partial or full hand-over |
-| `admin@displaceos.dev` | Administrator | Users and roles, zones and locations, severity rules, audit log |
+| `responder@displaceos.dev` | NGO lead (approved, Himalayan Aid Network) | Open needs board, offer to deliver, share live location, approve volunteers |
+| `volunteer@displaceos.dev` | NGO member waiting for the lead | See the "waiting for your lead" state |
+| `ngo.pending@displaceos.dev` | Organisation waiting for admin approval | See the pending state; approve it as admin |
+| `donor@displaceos.dev` | Donor (citizen account) | One donation received into stock, one waiting for review; donate more |
+| `admin@displaceos.dev` | Administrator | Approve responder organisations, users and roles, zones and locations, severity rules, audit log |
 
 All seeded places and events are labelled "(demo)" and do not describe a real emergency. `npm run seed`
 resets the database to this demo state.
@@ -56,7 +60,7 @@ resets the database to this demo state.
 ## Tests
 
 ```bash
-npm test                                   # backend (108 tests on a separate test database) then frontend (23 tests)
+npm test                                   # backend (118 tests on a separate test database) then frontend (28 tests)
 cd displaceos-backend && npm run lint      # syntax check
 cd displaceos-frontend && npm run build    # production bundle
 ```
@@ -72,6 +76,19 @@ cd displaceos-frontend && npm run build    # production bundle
   one (always labelled as an estimate), and a timeline of every step. A private link can be shared with family.
 - Disaster updates: zones and public alerts with their source, verification flag and update time.
 
+**For responders (rescue teams, NGOs, government)** — a separate account type
+- "Join as a responder": register an organisation (an admin verifies it) or join one with the lead's join code
+  (the lead approves each member). Only then does the account get responder powers.
+- Open needs board: verified requests nobody is delivering yet, with what is needed, how many people, roughly
+  where (about 1 km) and the straight-line distance. Teams press "Offer to deliver"; a coordinator assigns them.
+- Live location: on the road, the team switches on "Share live location". The family who asked sees the team moving
+  on a map until the delivery is recorded, then sharing stops.
+
+**For donors**
+- "Donate supplies": offer items for drop-off or collection. Staff accept the offer and say where to bring it.
+  Supplies become stock only when an inventory manager counts them in. The donor follows every step and then sees
+  deliveries made from that location.
+
 **For relief staff**
 - Severity is suggested by configurable server rules. Staff verify it or override it with a reason; RED and
   HYPER RED raise alerts.
@@ -80,9 +97,13 @@ cd displaceos-frontend && npm run build    # production bundle
   with ETA history and stock reconciliation.
 - Dashboards computed from the database, live updates over authenticated Socket.IO, and a full audit log.
 
-**The 3D Earth**: a real WebGL globe painted from Natural Earth country data in the warm palette. It shows
-camps, supply points, disaster zones, your own requests and (for coordinators) team positions. Drag to
-rotate or pick a place from the list. A flat map is used when WebGL is missing or reduced motion is preferred.
+**The 3D Earth, styled like a map app**: real country borders and coastlines (Natural Earth 1:50m), with state
+and province borders fading in as you zoom. Place names follow your zoom: large countries from far away, then more
+countries, capitals and cities. 7,342 places are included and labels never overlap. Zoom with + and −, pinch, or
+Ctrl/⌘ + scroll; plain scrolling still moves the page. Search any city, country or camp to fly there. It shows camps,
+supply points, disaster zones, your requests and (for coordinators) team positions. A flat map with country names is
+used when WebGL is missing or reduced motion is preferred. Street maps use OpenStreetMap, which shows boundaries and
+names by zoom level too.
 
 ## Honest limits
 

@@ -159,17 +159,35 @@ describe('partial and full delivery', () => {
 });
 
 describe('requester tracking privacy', () => {
-  it('hides exact team coordinates from requesters but gives approximate distance', async () => {
+  it('shows the team position to the requester only while the delivery is on the road', async () => {
     const { request, dispatch } = await dispatchFixture(f, {});
     await prisma.reliefRequest.update({ where: { id: request.id }, data: { latitude: 30.3, longitude: 78.0 } });
     await post(`/${dispatch.id}/accept`, f.tokens.team1);
-    await api().patch(`/api/v1/dispatches/${dispatch.id}/location`).set(auth(f.tokens.team1)).send({ latitude: 30.25, longitude: 78.05 });
-    const citizen = await api().get(`/api/v1/requests/${request.id}/tracking`).set(auth(f.tokens.citizen));
-    const loc = citizen.body.data.dispatches[0].location;
+    await api().patch(`/api/v1/dispatches/${dispatch.id}/location`).set(auth(f.tokens.team1)).send({ latitude: 30.25, longitude: 78.05, accuracyMeters: 12 });
+    const track = (token) => api().get(`/api/v1/requests/${request.id}/tracking`).set(auth(token));
+
+    // Accepted but not yet on the road: approximate distance only.
+    let loc = (await track(f.tokens.citizen)).body.data.dispatches[0].location;
     expect(loc.latitude).toBeUndefined();
-    expect(loc.longitude).toBeUndefined();
+    expect(loc.accuracyMeters).toBeUndefined();
+    expect(loc.sharedWithRequester).toBe(false);
     expect(loc.approxDistanceToDestinationKm).toBeGreaterThan(0);
     expect(loc.distanceBasis).toBe('STRAIGHT_LINE');
+
+    // In transit: the requester sees the real reported position.
+    await post(`/${dispatch.id}/start`, f.tokens.team1);
+    loc = (await track(f.tokens.citizen)).body.data.dispatches[0].location;
+    expect(loc).toMatchObject({ latitude: 30.25, longitude: 78.05, accuracyMeters: 12, sharedWithRequester: true });
+
+    // Another citizen still cannot see the request at all.
+    expect((await track(f.tokens.citizen2)).status).toBe(404);
+
+    // After the run closes the position is no longer shared.
+    const line = (await api().get(`/api/v1/dispatches/${dispatch.id}`).set(auth(f.tokens.team1))).body.data.lines[0];
+    await post(`/${dispatch.id}/complete`, f.tokens.team1, { lines: [{ dispatchLineId: line.id, quantity: line.quantity }], final: true });
+    loc = (await track(f.tokens.citizen)).body.data.dispatches[0].location;
+    expect(loc.latitude).toBeUndefined();
+
     const coord = await api().get(`/api/v1/dispatches/${dispatch.id}/tracking`).set(auth(f.tokens.coord));
     expect(coord.body.data.location.latitude).toBe(30.25);
   });

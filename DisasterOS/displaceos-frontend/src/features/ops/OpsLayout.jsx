@@ -1,5 +1,5 @@
 import { Navigate, NavLink, Outlet } from 'react-router-dom';
-import { BellRing, Boxes, ClipboardList, LayoutDashboard, Settings2, Truck } from 'lucide-react';
+import { BellRing, Boxes, ClipboardList, Gift, HandHeart, LayoutDashboard, Settings2, Truck } from 'lucide-react';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { ROLE_LABELS } from '../../lib/format.js';
 
@@ -8,7 +8,9 @@ const LINKS = [
   { to: '/ops/requests', label: 'Requests', icon: ClipboardList, roles: ['RELIEF_COORDINATOR', 'ADMIN', 'CAMP_MANAGER', 'INVENTORY_MANAGER', 'RESPONSE_TEAM'] },
   { to: '/ops/alerts', label: 'Alerts', icon: BellRing, roles: ['RELIEF_COORDINATOR', 'ADMIN', 'CAMP_MANAGER', 'INVENTORY_MANAGER', 'RESPONSE_TEAM'] },
   { to: '/ops/inventory', label: 'Inventory', icon: Boxes, roles: ['INVENTORY_MANAGER', 'RELIEF_COORDINATOR', 'ADMIN'] },
+  { to: '/ops/needs', label: 'Open needs', icon: HandHeart, roles: ['RESPONSE_TEAM', 'RELIEF_COORDINATOR', 'ADMIN'] },
   { to: '/ops/dispatch', label: 'Dispatch', icon: Truck, roles: ['RESPONSE_TEAM', 'RELIEF_COORDINATOR', 'ADMIN'] },
+  { to: '/ops/donations', label: 'Donations', icon: Gift, roles: ['RELIEF_COORDINATOR', 'ADMIN', 'INVENTORY_MANAGER'] },
   { to: '/ops/admin', label: 'Administration', icon: Settings2, roles: ['ADMIN'] },
 ];
 
@@ -17,7 +19,7 @@ export const OPS_HOME = {
   ADMIN: '/ops/overview',
   CAMP_MANAGER: '/ops/overview',
   INVENTORY_MANAGER: '/ops/inventory',
-  RESPONSE_TEAM: '/ops/dispatch',
+  RESPONSE_TEAM: '/ops/needs',
 };
 
 export function OpsIndex() {

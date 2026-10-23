@@ -131,3 +131,31 @@ export const auditApi = {
 export const healthApi = {
   get: () => getData('/health', undefined, { auth: false }),
 };
+
+export const organizationsApi = {
+  register: (body) => api.post('/organizations/register', body, { auth: false }).then((r) => r.data),
+  join: (body) => api.post('/organizations/join', body, { auth: false }).then((r) => r.data),
+  mine: () => getData('/organizations/mine'),
+  rotateJoinCode: () => api.post('/organizations/mine/join-code', {}).then((r) => r.data),
+  decideMember: (userId, decision) => api.post(`/organizations/mine/members/${userId}/decision`, { decision }).then((r) => r.data),
+  list: (q) => api.get('/organizations', q),
+  approve: (id, note) => api.post(`/organizations/${id}/approve`, note ? { note } : {}).then((r) => r.data),
+  reject: (id, reason) => api.post(`/organizations/${id}/reject`, { reason }).then((r) => r.data),
+};
+
+export const offersApi = {
+  openNeeds: (q) => api.get('/requests/open-needs', q),
+  create: (requestId, body) => api.post(`/requests/${requestId}/offers`, body).then((r) => r.data),
+  list: (requestId) => getData(`/requests/${requestId}/offers`),
+  withdraw: (requestId, offerId) => api.post(`/requests/${requestId}/offers/${offerId}/withdraw`, {}).then((r) => r.data),
+};
+
+export const suppliesApi = {
+  create: (body) => api.post('/supply-offers', body).then((r) => r.data),
+  list: (q) => api.get('/supply-offers', q),
+  get: (id) => getData(`/supply-offers/${id}`),
+  accept: (id, body) => api.post(`/supply-offers/${id}/accept`, body).then((r) => r.data),
+  receive: (id, body) => api.post(`/supply-offers/${id}/receive`, body).then((r) => r.data),
+  reject: (id, reason) => api.post(`/supply-offers/${id}/reject`, { reason }).then((r) => r.data),
+  cancel: (id, reason) => api.post(`/supply-offers/${id}/cancel`, { reason }).then((r) => r.data),
+};

@@ -123,18 +123,77 @@ enum NotificationStatus {
   SKIPPED
 }
 
+enum OrganizationType {
+  NGO
+  GOVERNMENT
+  VOLUNTEER_GROUP
+  MEDICAL
+  PRIVATE_COMPANY
+  OTHER
+}
+
+enum OrganizationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum OrgMemberRole {
+  LEAD
+  MEMBER
+}
+
+enum MembershipStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TeamOfferStatus {
+  OPEN
+  ACCEPTED
+  WITHDRAWN
+  DECLINED
+}
+
+enum SupplyOfferStatus {
+  PENDING
+  ACCEPTED
+  RECEIVED
+  REJECTED
+  CANCELLED
+}
+
+enum SupplyDeliveryMode {
+  PICKUP
+  DROP_OFF
+}
+
 // ─── Identity ─────────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String
-  fullName     String
-  phone        String?
-  role         Role     @default(CITIZEN)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+  id               String            @id @default(uuid()) @db.Uuid
+  email            String            @unique
+  passwordHash     String
+  fullName         String
+  phone            String?
+  role             Role              @default(CITIZEN)
+  isActive         Boolean           @default(true)
+  // Responder accounts belong to a relief organisation. The privileged RESPONSE_TEAM role is granted only
+  // after the organisation (and, for members, the membership) has been approved.
+  organizationId   String?           @db.Uuid
+  orgRole          OrgMemberRole?
+  membershipStatus MembershipStatus?
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+
+  organization          Organization?      @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: SetNull)
+  organizationsReviewed Organization[]     @relation("OrganizationReviewer")
+  teamOffers            TeamOffer[]
+  supplyOffers          SupplyOffer[]      @relation("SupplyDonor")
+  supplyOffersHandled   SupplyOffer[]      @relation("SupplyHandler")
+  supplyOfferEvents     SupplyOfferEvent[]
 
   sessions            RefreshSession[]
   locationAssignments UserLocationAssignment[]
@@ -161,6 +220,31 @@ model User {
   attachments         RequestAttachment[]
 
   @@index([role])
+  @@index([organizationId])
+}
+
+// A relief organisation (NGO, government department, volunteer group...) that registered to respond.
+model Organization {
+  id           String             @id @default(uuid()) @db.Uuid
+  name         String             @unique
+  type         OrganizationType
+  area         String
+  description  String?
+  contactPhone String
+  status       OrganizationStatus @default(PENDING)
+  // SHA-256 of the current join code. The raw code is shown to the lead once when generated.
+  joinCodeHash String?            @unique
+  reviewedById String?            @db.Uuid
+  reviewedAt   DateTime?          @db.Timestamptz(3)
+  reviewNote   String?
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @db.Timestamptz(3)
+
+  members    User[]         @relation("OrganizationMembers")
+  reviewedBy User?          @relation("OrganizationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  teams      ResponseTeam[]
+
+  @@index([status])
 }
 
 model RefreshSession {
@@ -242,6 +326,7 @@ model Location {
   campRequests   ReliefRequest[]
   allocations    Allocation[]
   teamsBasedHere ResponseTeam[]
+  supplyOffers   SupplyOffer[]
 
   @@index([type])
   @@index([disasterZoneId])
@@ -286,6 +371,7 @@ model ReliefRequest {
   allocations    Allocation[]
   dispatches     Dispatch[]
   trackingTokens PublicTrackingToken[]
+  teamOffers     TeamOffer[]
 
   @@index([status])
   @@index([severity])
@@ -429,6 +515,7 @@ model InventoryItem {
   requestItems    RequestItem[]
   allocationLines AllocationLine[]
   dispatchLines   DispatchLine[]
+  supplyLines     SupplyOfferLine[]
 
   @@index([category])
 }
@@ -530,15 +617,19 @@ model ResponseTeam {
   callSign       String?
   availability   TeamAvailability @default(AVAILABLE)
   baseLocationId String?          @db.Uuid
+  organizationId String?          @db.Uuid
   lastLatitude   Float?
   lastLongitude  Float?
+  lastAccuracyM  Float?
   lastLocationAt DateTime?        @db.Timestamptz(3)
   createdAt      DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
 
-  baseLocation Location?    @relation(fields: [baseLocationId], references: [id], onDelete: SetNull)
+  baseLocation Location?     @relation(fields: [baseLocationId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   members      TeamMember[]
   dispatches   Dispatch[]
+  offers       TeamOffer[]
 
   @@index([availability])
 }
@@ -566,6 +657,8 @@ model Dispatch {
   notes             String?
   currentLatitude   Float?
   currentLongitude  Float?
+  // 95%-confidence radius reported by the device's Geolocation API, in metres.
+  currentAccuracyM  Float?
   locationUpdatedAt DateTime?      @db.Timestamptz(3)
   currentEta        DateTime?      @db.Timestamptz(3)
   etaSource         EtaSource?
@@ -742,4 +835,86 @@ model PublicTrackingToken {
   createdBy User          @relation(fields: [createdById], references: [id])
 
   @@index([requestId])
+}
+
+// ─── Responder offers and supply donations ────────────────────────────────
+
+// A response team volunteering to deliver a verified request. A coordinator still assigns the dispatch.
+model TeamOffer {
+  id          String          @id @default(uuid()) @db.Uuid
+  requestId   String          @db.Uuid
+  teamId      String          @db.Uuid
+  offeredById String          @db.Uuid
+  note        String?
+  ownSupplies Boolean         @default(false)
+  status      TeamOfferStatus @default(OPEN)
+  createdAt   DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime        @updatedAt @db.Timestamptz(3)
+
+  request   ReliefRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  team      ResponseTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  offeredBy User          @relation(fields: [offeredById], references: [id])
+
+  @@index([requestId, status])
+  @@index([teamId])
+}
+
+// Supplies offered by a donor (person, company, NGO). Accepted offers become stock only once received.
+model SupplyOffer {
+  id                  String             @id @default(uuid()) @db.Uuid
+  referenceCode       String             @unique
+  donorId             String             @db.Uuid
+  donorName           String
+  deliveryMode        SupplyDeliveryMode
+  pickupAddress       String?
+  latitude            Float?
+  longitude           Float?
+  availableFrom       DateTime?          @db.Timestamptz(3)
+  notes               String?
+  status              SupplyOfferStatus  @default(PENDING)
+  receivingLocationId String?            @db.Uuid
+  handledById         String?            @db.Uuid
+  decisionNote        String?
+  receivedAt          DateTime?          @db.Timestamptz(3)
+  createdAt           DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime           @updatedAt @db.Timestamptz(3)
+
+  donor             User               @relation("SupplyDonor", fields: [donorId], references: [id])
+  handledBy         User?              @relation("SupplyHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  receivingLocation Location?          @relation(fields: [receivingLocationId], references: [id], onDelete: SetNull)
+  lines             SupplyOfferLine[]
+  events            SupplyOfferEvent[]
+
+  @@index([status])
+  @@index([donorId])
+}
+
+model SupplyOfferLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  offerId          String  @db.Uuid
+  inventoryItemId  String? @db.Uuid
+  name             String
+  unit             String
+  quantity         Int
+  receivedQuantity Int?
+
+  offer         SupplyOffer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
+  @@index([offerId])
+}
+
+// Append-only history shown to the donor.
+model SupplyOfferEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  offerId   String   @db.Uuid
+  type      String
+  message   String
+  actorId   String?  @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  offer SupplyOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  actor User?       @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([offerId, createdAt])
 }

@@ -1,7 +1,7 @@
 // Starts the whole app for local development in one terminal:
 //   1. embedded PostgreSQL (unless --own-db), 2. the API on :4000, 3. the website on :5173.
 // Ctrl+C stops everything.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,7 +43,17 @@ function shutdown(code = 0) {
   if (stopping) return;
   stopping = true;
   for (const c of children.reverse()) c.kill('SIGINT');
-  setTimeout(() => process.exit(code), 2000);
+  // Ctrl+C in a terminal already reaches every child, letting PostgreSQL stop cleanly. Anything still
+  // alive after a grace period is stopped with its whole process tree (on Windows a shell-spawned child
+  // does not pass signals on to its own children).
+  setTimeout(() => {
+    for (const c of children) {
+      if (c.exitCode !== null) continue;
+      if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(c.pid), '/T', '/F'], { stdio: 'ignore' });
+      else c.kill('SIGKILL');
+    }
+    process.exit(code);
+  }, 4000);
 }
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));

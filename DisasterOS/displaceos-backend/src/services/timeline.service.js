@@ -35,6 +35,7 @@ export async function recomputeRequestStatus(db, requestId) {
   else status = 'VERIFIED';
 
   if (status !== request.status) {
+    if (status === 'DELIVERED') await db.teamOffer.updateMany({ where: { requestId, status: 'OPEN' }, data: { status: 'DECLINED' } });
     return db.reliefRequest.update({
       where: { id: requestId },
       data: { status, ...(status === 'DELIVERED' ? { deliveredAt: new Date() } : {}) },

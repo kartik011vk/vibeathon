@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpCircle, CheckCircle2, Lightbulb, PackageCheck, Truck } from 'lucide-react';
-import { allocationsApi, dispatchesApi, requestsApi, teamsApi } from '../../api/services.js';
+import { ArrowUpCircle, CheckCircle2, HandHeart, Lightbulb, PackageCheck, Truck } from 'lucide-react';
+import { allocationsApi, dispatchesApi, offersApi, requestsApi, teamsApi } from '../../api/services.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { useToast } from '../../app/Toast.jsx';
 import { Badge, Dialog, ErrorState, Field, Loading, Notice, ReasonDialog, SeverityBadge } from '../../components/ui/index.jsx';
@@ -198,9 +198,9 @@ function Suggestions({ request, onDone }) {
   );
 }
 
-function DispatchDialog({ allocation, onClose, onDone }) {
+function DispatchDialog({ allocation, onClose, onDone, presetTeamId = '' }) {
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => teamsApi.list() });
-  const [teamId, setTeamId] = useState('');
+  const [teamId, setTeamId] = useState(presetTeamId);
   const [notes, setNotes] = useState('');
   const m = useMutation({ mutationFn: () => dispatchesApi.create({ allocationId: allocation.id, teamId, ...(notes.trim() ? { notes: notes.trim() } : {}) }), onSuccess: () => (onDone(), onClose()) });
   return (
@@ -245,6 +245,9 @@ function Allocations({ request, onDone }) {
   const [dialog, setDialog] = useState(null);
   const [showSuggest, setShowSuggest] = useState(false);
   const q = useQuery({ queryKey: ['allocations', request.id], queryFn: () => allocationsApi.list({ requestId: request.id, pageSize: 50 }) });
+  const offers = useQuery({ queryKey: ['offers', request.id], queryFn: () => offersApi.list(request.id), enabled: hasRole('RELIEF_COORDINATOR', 'ADMIN') });
+  const approved = q.data?.data.find((a) => a.status === 'APPROVED');
+  const openOffers = (offers.data ?? []).filter((o) => o.status === 'OPEN');
   const changed = () => {
     qc.invalidateQueries({ queryKey: ['allocations'] });
     qc.invalidateQueries({ queryKey: ['suggestions', request.id] });
@@ -268,6 +271,30 @@ function Allocations({ request, onDone }) {
         )}
       </div>
       {!allocatable && request.status === 'SUBMITTED' && <p className="small muted">Verify the request before allocating stock.</p>}
+      {openOffers.length > 0 && (
+        <div className="card card-tight card-cream stack">
+          <strong>
+            <HandHeart size={16} aria-hidden="true" /> {openOffers.length} team{openOffers.length > 1 ? 's' : ''} offered to deliver
+          </strong>
+          {openOffers.map((o) => (
+            <div key={o.id} className="row-between">
+              <span className="small">
+                <strong>{o.team.name}</strong>
+                {o.team.organization ? ` (${o.team.organization.name})` : ''} · {o.team.availability.toLowerCase().replace('_', ' ')}
+                {o.ownSupplies ? ' · can bring own supplies' : ''}
+                {o.note ? ` — “${o.note}”` : ''}
+              </span>
+              {approved ? (
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'dispatch', a: approved, teamId: o.team.id })}>
+                  <Truck size={14} /> Assign this team
+                </button>
+              ) : (
+                <span className="small muted">Reserve stock first, then assign</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {showSuggest && <Suggestions request={request} onDone={changed} />}
       {q.isPending && <Loading rows={1} />}
       {q.isError && <ErrorState error={q.error} onRetry={q.refetch} />}
@@ -323,7 +350,14 @@ function Allocations({ request, onDone }) {
           onConfirm={async (r) => (await allocationsApi.release(dialog.a.id, r), changed())}
         />
       )}
-      {dialog?.kind === 'dispatch' && <DispatchDialog allocation={dialog.a} onClose={() => setDialog(null)} onDone={() => (toast('Dispatch created'), changed())} />}
+      {dialog?.kind === 'dispatch' && (
+        <DispatchDialog
+          allocation={dialog.a}
+          presetTeamId={dialog.teamId}
+          onClose={() => setDialog(null)}
+          onDone={() => (toast('Dispatch created'), changed(), qc.invalidateQueries({ queryKey: ['offers', request.id] }))}
+        />
+      )}
     </div>
   );
 }

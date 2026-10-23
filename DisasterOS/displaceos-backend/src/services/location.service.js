@@ -148,6 +148,7 @@ export async function mapTeams(user) {
     availability: t.availability,
     latitude: t.lastLatitude,
     longitude: t.lastLongitude,
+    accuracyMeters: t.lastAccuracyM,
     updatedAt: t.lastLocationAt,
     stale: isLocationStale(t.lastLocationAt),
   }));

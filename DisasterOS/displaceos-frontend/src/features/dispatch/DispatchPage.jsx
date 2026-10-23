@@ -1,11 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock, Crosshair, PackageCheck, Play, ThumbsUp } from 'lucide-react';
+import { Clock, PackageCheck, Play, Radio, ThumbsUp } from 'lucide-react';
 import { dispatchesApi, placesApi, teamsApi, trackingApi } from '../../api/services.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { useToast } from '../../app/Toast.jsx';
-import { useGeolocation } from '../../hooks/useGeolocation.js';
+import { useLiveLocation } from '../../hooks/useLiveLocation.js';
 import { Badge, Dialog, EmptyState, ErrorState, Field, Loading, Notice, PageHead, ReasonDialog, SeverityBadge, Tabs } from '../../components/ui/index.jsx';
 import { categoryLabel, DISPATCH_STATUS, formatDateTime, num, timeAgo } from '../../lib/format.js';
 import { EtaPanel } from '../tracking/TrackingParts.jsx';
@@ -121,7 +121,6 @@ function EtaHistory({ id }) {
 function DispatchWork({ d, isTeam, isCoordinator }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const geo = useGeolocation();
   const [dialog, setDialog] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const done = (msg) => {
@@ -131,13 +130,11 @@ function DispatchWork({ d, isTeam, isCoordinator }) {
     qc.invalidateQueries({ queryKey: ['teams'] });
   };
   const act = useMutation({ mutationFn: (fn) => fn(), onSuccess: () => done() });
-  const sendLocation = useMutation({ mutationFn: (pos) => dispatchesApi.updateLocation(d.id, { latitude: pos.latitude, longitude: pos.longitude }), onSuccess: () => done('Position shared') });
-
-  useEffect(() => {
-    if (geo.status === 'ready' && geo.position) sendLocation.mutate(geo.position);
-  }, [geo.status, geo.position]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const moving = ['IN_TRANSIT', 'PARTIALLY_DELIVERED'].includes(d.status);
+  const live = useLiveLocation(async (pos) => {
+    await dispatchesApi.updateLocation(d.id, pos);
+    qc.invalidateQueries({ queryKey: ['dispatches'] });
+  }, ['ACCEPTED', 'IN_TRANSIT', 'PARTIALLY_DELIVERED'].includes(d.status));
   const open = OPEN.includes(d.status);
   return (
     <article className="card stack">
@@ -203,8 +200,14 @@ function DispatchWork({ d, isTeam, isCoordinator }) {
             </button>
           )}
           {isTeam && d.status !== 'ASSIGNED' && (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => geo.request()} disabled={geo.status === 'locating' || sendLocation.isPending} title="Shares your phone's position with coordinators for this delivery only">
-              <Crosshair size={16} /> {geo.status === 'locating' ? 'Locating…' : 'Share my position'}
+            <button
+              type="button"
+              className={`btn btn-sm ${live.sharing ? 'btn-amber' : 'btn-secondary'}`}
+              aria-pressed={live.sharing}
+              onClick={() => (live.sharing ? live.stop() : live.start())}
+              title="Coordinators always see it; the family sees it on a map once you start the delivery"
+            >
+              <Radio size={16} /> {live.sharing ? 'Stop sharing location' : 'Share live location'}
             </button>
           )}
           {(isTeam || isCoordinator) && (
@@ -224,8 +227,14 @@ function DispatchWork({ d, isTeam, isCoordinator }) {
           )}
         </div>
       )}
-      {geo.error && <Notice tone="warn">{geo.error.replace('choose your location manually below', 'you can still update the arrival estimate')}</Notice>}
-      {(act.isError || sendLocation.isError) && <Notice tone="danger">{(act.error ?? sendLocation.error).message}</Notice>}
+      {live.sharing && (
+        <Notice icon={Radio} title="Sharing your live location">
+          {live.lastSentAt ? `Last sent ${timeAgo(live.lastSentAt)}${live.lastAccuracy ? `, accurate to about ${live.lastAccuracy} m` : ''}.` : 'Waiting for the first GPS fix…'}
+          {live.lastAccuracy > 100 ? ' The signal is weak — step outside or away from buildings for a better fix.' : ''} {moving ? 'The family can see your position on their map.' : 'The family will see it once you start the delivery.'} Keep this page open while you drive.
+        </Notice>
+      )}
+      {live.error && <Notice tone="warn">{live.error} You can still update the arrival estimate.</Notice>}
+      {act.isError && <Notice tone="danger">{act.error.message}</Notice>}
       <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setShowHistory((v) => !v)} aria-expanded={showHistory}>
         {showHistory ? 'Hide' : 'Show'} arrival-estimate history
       </button>

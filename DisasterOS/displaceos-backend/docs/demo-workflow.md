@@ -89,7 +89,7 @@ login() { curl -s -X POST $API/auth/login -H 'content-type: application/json' \
    ```
 9. **Requester tracking and ETA history**
    ```bash
-   curl -s $API/requests/<id>/tracking -H "authorization: Bearer $CIT"          # no exact team coordinates
+   curl -s $API/requests/<id>/tracking -H "authorization: Bearer $CIT"          # exact team position only while IN_TRANSIT
    curl -s $API/dispatches/<dispatchId>/tracking -H "authorization: Bearer $CO"  # etaHistory[]
    ```
 10. **Partial delivery, then complete (or fail)**

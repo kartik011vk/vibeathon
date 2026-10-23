@@ -18,6 +18,7 @@ import { announceAlert, isRedLevel, upsertRequestAlertTx } from './alert.service
 import { notifyRoles, notifyUsers } from './notification.service.js';
 import { canSeeExactRequestLocation, findRequestInScope, isCoordinator, requestScope } from './access.service.js';
 import { emit, rooms } from '../sockets/emitter.js';
+import { declineOpenOffersTx } from './offer.service.js';
 
 const requestRooms = (r) => [rooms.request(r.id), rooms.ops, r.campId ? rooms.camp(r.campId) : null];
 
@@ -167,7 +168,7 @@ function shape(user, r) {
     verifiedBy: staff && r.verifiedBy ? { id: r.verifiedBy.id, fullName: r.verifiedBy.fullName } : undefined,
     rejectionReason: r.rejectionReason,
     cancelledReason: r.cancelledReason,
-    camp: r.camp ? { id: r.camp.id, name: r.camp.name, area: r.camp.area } : null,
+    camp: r.camp ? { id: r.camp.id, name: r.camp.name, area: r.camp.area, latitude: r.camp.latitude, longitude: r.camp.longitude } : null,
     disasterZone: r.disasterZone ? { id: r.disasterZone.id, name: r.disasterZone.name, hazardType: r.disasterZone.hazardType } : null,
     requester: staff && r.requester ? { id: r.requester.id, fullName: r.requester.fullName, phone: r.requester.phone } : undefined,
     items: r.items?.map((i) => ({
@@ -308,6 +309,7 @@ export async function cancelRequest(user, id, reason, req) {
       if (a.status === 'APPROVED') await releaseAllocationTx(tx, a.id, user, `Request cancelled: ${reason}`);
       else await tx.allocation.update({ where: { id: a.id }, data: { status: 'REJECTED', rejectedReason: `Request cancelled: ${reason}` } });
     }
+    await declineOpenOffersTx(tx, id);
     await addTimelineEvent(tx, { requestId: id, type: 'CANCELLED', message: `Request cancelled: ${reason}`, actor: user });
     await audit(tx, { actor: user, action: 'REQUEST_CANCELLED', entityType: 'ReliefRequest', entityId: id, before: { status: current.status }, after: { status: 'CANCELLED', reason }, req });
     return closeOpenAlerts(tx, id, user, 'Request cancelled');

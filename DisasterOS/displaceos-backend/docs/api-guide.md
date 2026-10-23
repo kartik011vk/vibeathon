@@ -139,3 +139,24 @@ socket.emit('subscribe', { type: 'request', id: requestId }, (ack) => console.lo
 
 Every payload also has `emittedAt`. Payloads are intentionally minimal: clients refetch the REST resource.
 REST remains fully usable (polling) when sockets are unavailable.
+
+
+## Responders, offers and donations (added in v1.1)
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| POST `/organizations/register` | — | Organisation + lead account. Lead stays CITIZEN until an admin approves. Returns a session like `/auth/register`. |
+| POST `/organizations/join` | — | Join an APPROVED organisation with its join code; membership PENDING until the lead approves. |
+| GET `/organizations/mine` | any | Own organisation, status, teams; the approved lead also gets the member list. |
+| POST `/organizations/mine/join-code` | approved lead | New join code (returned once, stored hashed; old code stops working). |
+| POST `/organizations/mine/members/:userId/decision` | approved lead | `{decision: APPROVE|REJECT}`; approval grants RESPONSE_TEAM and adds the member to the organisation's team. |
+| GET `/organizations` · GET `/organizations/:id` | RC/A | Review list with lead contact details. |
+| POST `/organizations/:id/approve` · `/reject` | A | Approval grants the lead RESPONSE_TEAM and creates the organisation's response team. |
+| GET `/requests/open-needs` | RT, RC/A | Verified requests with no open dispatch; no requester identity; location rounded to ~1 km; straight-line distance from the team. |
+| POST `/requests/:id/offers` · GET · POST `/:offerId/withdraw` | RT (own team) / RC/A read | One open offer per team per request; assigning the dispatch to that team marks it ACCEPTED. |
+| POST `/supply-offers` · GET `/supply-offers` · GET `/:id` | any (own) / RC/A/IM all | Donations with append-only events and post-arrival impact. |
+| POST `/supply-offers/:id/accept` | RC/A/IM | Choose receiving stock location; free-text lines must be mapped to catalogue items. |
+| POST `/supply-offers/:id/receive` | IM of that location, A | Counted quantities become RECEIPT transactions. |
+| POST `/supply-offers/:id/reject` · `/cancel` | RC/A/IM · donor | |
+
+Socket event `supply:updated` `{ id, status }` goes to staff rooms and the donor's user room.

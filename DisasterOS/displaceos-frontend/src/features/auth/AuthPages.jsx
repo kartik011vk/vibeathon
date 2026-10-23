@@ -13,6 +13,9 @@ const DEMO_ACCOUNTS = [
   ['camp.manager@displaceos.dev', 'Camp manager'],
   ['inventory@displaceos.dev', 'Inventory manager'],
   ['team.alpha@displaceos.dev', 'Response team'],
+  ['responder@displaceos.dev', 'NGO lead (approved)'],
+  ['ngo.pending@displaceos.dev', 'NGO (awaiting approval)'],
+  ['donor@displaceos.dev', 'Donor'],
   ['admin@displaceos.dev', 'Admin'],
 ];
 
@@ -63,7 +66,9 @@ export function LoginPage() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
         <p className="small" style={{ margin: 0 }}>
-          New here? <Link to="/register" state={location.state}>Create a free account</Link> to request supplies.
+          New here? <Link to="/register" state={location.state}>Create a free account</Link> to request supplies or donate.
+          <br />
+          Rescue team, NGO or government office? <Link to="/join-responder">Join as a responder</Link>.
         </p>
       </form>
       {import.meta.env.DEV && (

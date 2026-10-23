@@ -81,6 +81,16 @@ export async function consumeReservedTx(tx, { itemId, locationId, quantity, ...c
   return rows[0];
 }
 
+// Receipt inside an existing transaction (used when donated supplies arrive).
+export async function receiveStockTx(tx, { itemId, locationId, quantity, reason, actor }) {
+  await ensureBalance(tx, itemId, locationId);
+  const rows = await tx.$queryRaw`
+    UPDATE "InventoryBalance" SET "onHand" = "onHand" + ${quantity}, "lastCountedAt" = now(), "updatedAt" = now()
+    WHERE "itemId" = ${itemId}::uuid AND "locationId" = ${locationId}::uuid
+    RETURNING "itemId", "locationId", "onHand", "reserved"`;
+  return recordTxn(tx, rows[0], { type: 'RECEIPT', quantity, reason, actor });
+}
+
 // ─── Manual transactions (RECEIPT, ADJUSTMENT, CONSUMPTION) ──────────────
 
 export async function recordTransaction(user, input, req) {

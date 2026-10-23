@@ -38,6 +38,24 @@ Status key:
 | Notifications | `GET /notifications`, `POST /notifications/:id/read` | signed in | empty / error | VERIFIED (browser badge count) |
 | Live updates | Socket.IO `auth.token`; `subscribe {type:'request'}` on detail page; all events invalidate React Query caches | signed in | header shows Live / Reconnecting / Offline; polling continues | VERIFIED ("Live updates" shown in browser; socket auth/rooms in tests) |
 
+## Responders, donors and live location (v1.1)
+
+| Screen · action | Method & route / event | Roles | Error and empty handling | Status |
+|---|---|---|---|---|
+| Join as a responder · register organisation | `POST /organizations/register` | anyone | field errors; duplicate name/email → 409 | VERIFIED (browser) |
+| Join as a responder · join with code | `POST /organizations/join` | anyone | invalid/rotated code → 404 message | VERIFIED (tests) |
+| My organisation · status, join code, members | `GET /organizations/mine`, `POST /mine/join-code`, `POST /mine/members/:id/decision` | members / approved lead | pending and rejected states explained | VERIFIED (browser, tests) |
+| Admin · responder organisations | `GET /organizations`, `POST /:id/approve`, `/reject` | ADMIN | reason required to reject | VERIFIED (browser) |
+| Open needs board + map | `GET /requests/open-needs` | RESPONSE_TEAM, coordinators | empty state; no requester identity; ~1 km positions | VERIFIED (browser, tests) |
+| Offer to deliver · withdraw | `POST /requests/:id/offers`, `POST …/offers/:offerId/withdraw` | RESPONSE_TEAM (own team) | duplicate → 409 | VERIFIED (browser, tests) |
+| Coordinator · assign offering team | `GET /requests/:id/offers` → `POST /dispatches` (team preselected) | coordinators | "reserve stock first" when no approved allocation | VERIFIED (browser) |
+| Team · share live location | browser `watchPosition` (on switch) → `PATCH /dispatches/:id/location` every ≥15 s | assigned team | permission denied stops sharing with a message | VERIFIED (browser with simulated GPS) |
+| Requester · live delivery map | `GET /requests/:id/tracking` (15 s polling while live), `location.sharedWithRequester` | requester while IN_TRANSIT / PARTIALLY_DELIVERED | stale position flagged | VERIFIED (browser, tests) |
+| Donate supplies | `GET /inventory` (catalogue), `POST /supply-offers` | signed in | pickup needs an address; nothing counted as stock yet | VERIFIED (browser, tests) |
+| My donations · detail and impact | `GET /supply-offers?mine=true`, `GET /supply-offers/:id`; event `supply:updated` | donor | not found for other users | VERIFIED (browser) |
+| Ops · donations accept / count in / decline | `POST /supply-offers/:id/accept|receive|reject` | RC/A/IM; receive = IM of the location or admin | unmapped items must be matched; wrong location → 403 | VERIFIED (browser, tests) |
+| Globe · zoom, borders, place names, search | static Natural Earth data in `src/data/` (lazy chunks) | anyone | flat map fallback | VERIFIED (browser screenshots at three zoom levels) |
+
 ## Operations screens
 
 | Screen · action | Method & route / event | Roles | Error and empty handling | Status |
@@ -79,6 +97,9 @@ Status key:
 | Coordinator UI for zones and rules | Admin screen only; coordinators can use the API | — |
 
 ## Contract adjustments made during integration
+
+4. (v1.1) Requesters now receive the team's exact position while their dispatch is on the road
+   (`location.sharedWithRequester`). Previously they only got the approximate distance. Tests and docs were updated.
 
 1. `POST /auth/refresh` got its own rate limit (300 per 15 min). It runs on every page load to restore the
    session, so the strict login limit (20 per 15 min) was signing out users who reload often. Found by the

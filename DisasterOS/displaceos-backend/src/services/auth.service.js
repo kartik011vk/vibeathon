@@ -24,7 +24,7 @@ export async function hashPassword(password) {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
-async function issueSession(db, user, { familyId = randomUUID(), userAgent } = {}) {
+export async function issueSession(db, user, { familyId = randomUUID(), userAgent } = {}) {
   const refreshToken = newRefreshToken();
   const session = await db.refreshSession.create({
     data: {

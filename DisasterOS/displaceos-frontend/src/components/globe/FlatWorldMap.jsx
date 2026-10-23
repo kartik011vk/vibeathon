@@ -1,7 +1,7 @@
 // 2D fallback: the same Natural Earth geography as an SVG equirectangular map with keyboard-accessible markers.
 // Used when WebGL is unavailable, when the user prefers reduced motion, or when chosen manually.
 import { useEffect, useState } from 'react';
-import { loadWorld, polygonsOf, unwrapRing } from './worldData.js';
+import { loadPlaces, loadWorld, polygonsOf, unwrapRing } from './worldData.js';
 import { MARKER_KINDS } from './markers.js';
 
 const W = 1000;
@@ -21,11 +21,13 @@ function ringPath(ring) {
 
 export default function FlatWorldMap({ clusters, selectedId, onSelect }) {
   const [paths, setPaths] = useState(null);
+  const [labels, setLabels] = useState([]);
   useEffect(() => {
     let alive = true;
+    loadPlaces().then((p) => alive && setLabels(p.countries.filter((c) => c[3] > 900_000 && c[0] !== 'Siachen Glacier')));
     loadWorld().then((w) => {
       if (!alive) return;
-      setPaths(w.land.features.flatMap((f) => polygonsOf(f.geometry).map((poly) => poly.map(ringPath).join(''))));
+      setPaths(w.countries.features.flatMap((f) => polygonsOf(f.geometry).map((poly) => poly.map(ringPath).join(''))));
     });
     return () => {
       alive = false;
@@ -38,6 +40,15 @@ export default function FlatWorldMap({ clusters, selectedId, onSelect }) {
       {paths?.map((d, i) => (
         <path key={i} d={d} fill="#f4ae37" fillRule="evenodd" stroke="#663e23" strokeWidth="0.4" />
       ))}
+      {paths &&
+        labels.map(([name, lat, lng]) => {
+          const [x, y] = px(lng, lat);
+          return (
+            <text key={name} x={x} y={y} textAnchor="middle" fontSize="9" fontWeight="700" letterSpacing="1.2" fill="#5a3417" style={{ textTransform: 'uppercase', pointerEvents: 'none' }}>
+              {name.toUpperCase()}
+            </text>
+          );
+        })}
       {!paths && (
         <text x={W / 2} y={H / 2} textAnchor="middle" fill="#ffefcf" fontSize="18">
           Loading map…

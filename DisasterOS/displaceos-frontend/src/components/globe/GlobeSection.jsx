@@ -1,13 +1,17 @@
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Globe2, Map as MapIcon, Pause, Play, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Globe2, Map as MapIcon, Minus, Pause, Play, Plus, X } from 'lucide-react';
 import { placesApi } from '../../api/services.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { HAZARD_LABELS, LOCATION_TYPES, REQUEST_STATUS } from '../../lib/format.js';
 import { SeverityBadge } from '../ui/index.jsx';
 import { clusterMarkers, MARKER_KINDS } from './markers.js';
 import FlatWorldMap from './FlatWorldMap.jsx';
+import PlaceSearch from './PlaceSearch.jsx';
+
+// Markers closer than this merge into one cluster; the radius shrinks as you zoom in.
+const CLUSTER_KM = [60, 30, 12, 4, 1.5];
 
 const Globe3D = lazy(() => import('./Globe3D.jsx'));
 
@@ -102,9 +106,11 @@ export default function GlobeSection() {
   const [mode, setMode] = useState(() => readPref() ?? (canWebgl && !reduced ? '3d' : '2d'));
   const [autoRotate, setAutoRotate] = useState(!reduced);
   const [selected, setSelected] = useState(null);
+  const [focus, setFocus] = useState(null);
+  const [zoomBucket, setZoomBucket] = useState(0);
   const controlRef = useRef(null);
   const { markers, loading, error } = useMarkers();
-  const clusters = useMemo(() => clusterMarkers(markers), [markers]);
+  const clusters = useMemo(() => clusterMarkers(markers, CLUSTER_KM[zoomBucket]), [markers, zoomBucket]);
   const show3d = mode === '3d' && canWebgl;
 
   const choose = (m) => {
@@ -116,15 +122,19 @@ export default function GlobeSection() {
     }
   };
 
-  const select = (c) => setSelected(c);
+  const select = (c) => {
+    setSelected(c);
+    if (c) setFocus({ latitude: c.latitude, longitude: c.longitude });
+  };
   const kindsPresent = [...new Set(markers.map((m) => m.kind))];
 
   return (
     <div>
+      {show3d && <PlaceSearch markers={markers} onPick={(r) => (setSelected(null), setFocus({ latitude: r.latitude, longitude: r.longitude, distance: r.distance, name: r.name, at: Date.now() }))} />}
       <div className="globe-stage">
         {show3d ? (
           <Suspense fallback={<div className="state">Loading globe…</div>}>
-            <Globe3D clusters={clusters} selectedId={selected?.id} onSelect={select} focus={selected} autoRotate={autoRotate && !selected} controlRef={controlRef} />
+            <Globe3D clusters={clusters} selectedId={selected?.id} onSelect={select} focus={focus} autoRotate={autoRotate && !selected && !focus?.distance} controlRef={controlRef} onZoomBucket={setZoomBucket} />
           </Suspense>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
@@ -175,6 +185,12 @@ export default function GlobeSection() {
       <div className="row" style={{ justifyContent: 'center', marginTop: 12 }}>
         {show3d && (
           <>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => controlRef.current?.zoomBy(0.8)} aria-label="Zoom in">
+              <Plus size={16} />
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => controlRef.current?.zoomBy(1.25)} aria-label="Zoom out">
+              <Minus size={16} />
+            </button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => controlRef.current?.rotate(-90)} aria-label="Rotate globe west">
               <ChevronLeft size={16} />
             </button>
@@ -207,7 +223,7 @@ export default function GlobeSection() {
                   <strong>{m.label}</strong> <span className="small muted">· {m.sub}</span>
                 </span>
                 <span className="row">
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelected(clusters.find((c) => c.items.includes(m)) ?? null)}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => (setSelected(clusters.find((c) => c.items.includes(m)) ?? null), setFocus({ latitude: m.latitude, longitude: m.longitude, distance: 1.25, at: Date.now() }))}>
                     Show on globe
                   </button>
                   <Link to={m.to} className="small">

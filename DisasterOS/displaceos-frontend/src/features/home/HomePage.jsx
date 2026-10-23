@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ClipboardList, HandHeart, MapPin, PackageSearch, PhoneCall, Route, ShieldCheck, Truck } from 'lucide-react';
+import { ArrowRight, Building2, ClipboardList, Gift, HandHeart, MapPin, PackageSearch, PhoneCall, Radio, Route, ShieldCheck, Truck } from 'lucide-react';
 import { alertsApi, placesApi } from '../../api/services.js';
 import GlobeSection from '../../components/globe/GlobeSection.jsx';
 import { SeverityBadge } from '../../components/ui/index.jsx';
@@ -137,6 +137,45 @@ export default function HomePage() {
       </section>
 
       <section className="section">
+        <div className="container">
+          <div className="eyebrow">Want to help?</div>
+          <h2>Rescue teams, NGOs, government offices and donors</h2>
+          <p className="lead">Requests only matter if someone can fulfil them. DisplaceOS gives the people who deliver their own accounts and tools.</p>
+          <div className="grid grid-2" style={{ marginTop: 20 }}>
+            <div className="card stack">
+              <div className="row">
+                <Building2 size={24} color="var(--orange-deep)" aria-hidden="true" />
+                <h3 style={{ margin: 0 }}>Respond as an organisation</h3>
+              </div>
+              <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Register your NGO, rescue team or government department — an administrator verifies you.</li>
+                <li>See verified needs near you (without the family's private details) and offer to deliver.</li>
+                <li>Accept dispatches, record exactly what you handed over, and share your live location so families can see you on the map.</li>
+                <li>Invite your volunteers with a join code; you approve each one.</li>
+              </ul>
+              <Link to="/join-responder" className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                <Radio size={16} /> Join as a responder
+              </Link>
+            </div>
+            <div className="card stack">
+              <div className="row">
+                <Gift size={24} color="var(--orange-deep)" aria-hidden="true" />
+                <h3 style={{ margin: 0 }}>Donate supplies</h3>
+              </div>
+              <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Offer food, water, medicine, blankets or hygiene kits — from one family or a whole company.</li>
+                <li>Staff tell you which warehouse or camp to bring them to, or arrange collection.</li>
+                <li>Follow your donation until it is counted into stock, and see deliveries made from that location afterwards.</li>
+              </ul>
+              <Link to="/donate" className="btn btn-secondary" style={{ alignSelf: 'flex-start' }}>
+                <Gift size={16} /> Donate supplies
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section section-alt">
         <div className="container grid grid-2" style={{ alignItems: 'start' }}>
           <div>
             <div className="eyebrow">Honest information</div>

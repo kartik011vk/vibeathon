@@ -31,8 +31,10 @@ item catalogue, availability, map resources, public tracking by link token.
    Out-of-scope ids return **404**, the same as missing ids, to prevent IDOR/enumeration.
 3. **Action rules in services** — e.g. only the assigned team may accept or report location; only coordinators
    override severity; inventory managers approve only their own sources; admins cannot demote themselves.
-4. **Field-level privacy** — requesters never get exact team coordinates (only approximate straight-line distance
-   to destination); other citizens never get requester coordinates; staff identities are hidden from requester
+4. **Field-level privacy** — the requester sees the assigned team's real reported position only while that dispatch
+   is `IN_TRANSIT` or `PARTIALLY_DELIVERED` (`location.sharedWithRequester: true`); before the team starts and after
+   the run closes they get only the approximate straight-line distance. Open-needs boards show responders no requester
+   identity, phone or address and round positions to about 1 km; other citizens never get requester coordinates; staff identities are hidden from requester
    timelines; public tracking returns no names, addresses, coordinates or contact data.
 
 Never trusted from the client: role, user id, ownership, severity, status, requester, disaster zone (derived from

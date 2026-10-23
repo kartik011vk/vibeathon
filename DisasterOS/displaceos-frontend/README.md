@@ -15,7 +15,7 @@ The backend must be running first (see `../displaceos-backend/README.md`, or `np
 npm install
 cp .env.example .env     # defaults work for local development
 npm run dev              # http://localhost:5173
-npm test                 # 23 tests
+npm test                 # 28 tests
 npm run build            # production bundle in dist/
 ```
 
@@ -48,9 +48,17 @@ src/test/           Vitest suites
   meets WCAG AA contrast. Map tiles are passed through a warm sepia filter.
 - **3D Earth**: a real WebGL sphere. Its texture is painted at runtime from Natural Earth country polygons
   (`world-atlas`), so the geography is genuine and stays in the warm palette. It rotates slowly, can be dragged,
-  and focuses on a marker when selected. The wheel is never captured, so scrolling always works. Nearby markers are
+  and focuses on a marker when selected. Zoom uses buttons, pinch or Ctrl/⌘ + scroll — a plain wheel always scrolls the page. Nearby markers are
   clustered so they stay clickable. The globe is lazy-loaded; a 2D SVG map of the same data is used when WebGL
   is missing, when the user prefers reduced motion, or on request. Every place is also listed as plain links.
+- **Map-app labels on the globe**: country borders and coastlines are vector lines (crisp at any zoom). State and
+  province lines load lazily once you zoom in. Labels are pooled DOM elements projected every other frame, with
+  level of detail by camera distance, horizon culling and collision avoidance. Data lives in `src/data/`;
+  see `scripts/geodata/README.md` for how it is generated from Natural Earth.
+- **Responders and donors**: `/join-responder` (separate sign-up with admin and lead approval), `/organization`,
+  `/ops/needs` (open needs and offers), `/donate`, `/donations`, `/ops/donations`. Teams share live location with
+  `useLiveLocation` (watchPosition, at most every 15 s). Requesters see the live map only while the backend marks
+  `location.sharedWithRequester`.
 - **Honesty rules**: availability comes only from recorded stock. Stale counts read "Availability not confirmed".
   Distance appears only when both points have coordinates, labelled "straight-line". The ETA appears only when a
   team has entered one, labelled as an estimate. Nothing falls back to placeholder data when a request fails.

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Copy, Link2, Megaphone, XCircle } from 'lucide-react';
+import { ArrowLeft, Copy, Link2, Megaphone, Radio, XCircle } from 'lucide-react';
 import { requestsApi } from '../../api/services.js';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { useLiveRecord } from '../../app/SocketContext.jsx';
@@ -11,6 +11,55 @@ import { categoryLabel, formatDateTime, timeAgo } from '../../lib/format.js';
 import { DispatchCard, EtaPanel, ItemsProgress, StatusStepper, Timeline } from '../tracking/TrackingParts.jsx';
 
 const StaffRequestPanel = lazy(() => import('../ops/StaffRequestPanel.jsx'));
+const LeafletMap = lazy(() => import('../../components/map/LeafletMap.jsx'));
+
+// Live map for the requester: the team's real reported position while supplies are on the road.
+function LiveDeliveryMap({ dispatch, destination }) {
+  const loc = dispatch.location;
+  return (
+    <section className="card stack" aria-labelledby="live-h">
+      <div className="row-between">
+        <h2 id="live-h" style={{ fontSize: '1.25rem', margin: 0 }}>
+          <Radio size={18} aria-hidden="true" color="var(--orange-deep)" /> Your delivery is on the way
+        </h2>
+        <span className={`conn ${loc.stale ? 'conn-wait' : 'conn-live'}`}>
+          <span className="dot" /> {loc.stale ? 'Position out of date' : 'Live'}
+        </span>
+      </div>
+      <Suspense fallback={<Loading label="Loading map…" />}>
+        <LeafletMap
+          label="Live position of your delivery team"
+          markers={[
+            {
+              id: dispatch.id,
+              latitude: loc.latitude,
+              longitude: loc.longitude,
+              kind: 'team',
+              title: dispatch.team?.name,
+              popup: (
+                <span>
+                  {dispatch.team?.name} · reported {timeAgo(loc.updatedAt)}
+                </span>
+              ),
+            },
+          ]}
+          you={destination}
+          circles={
+            loc.accuracyMeters
+              ? [{ id: 'accuracy', latitude: loc.latitude, longitude: loc.longitude, radiusKm: loc.accuracyMeters / 1000, pathOptions: { color: '#663e23', weight: 1, fillColor: '#f4ae37', fillOpacity: 0.22 } }]
+              : []
+          }
+        />
+      </Suspense>
+      <p className="small muted" style={{ margin: 0 }}>
+        {dispatch.team?.name} shared this position {timeAgo(loc.updatedAt)}
+        {loc.approxDistanceToDestinationKm != null ? ` — about ${loc.approxDistanceToDestinationKm} km from you in a straight line (the road route is longer)` : ''}.
+        {loc.accuracyMeters ? ` The phone reports this position as accurate to about ${loc.accuracyMeters} m (shaded circle).` : ' The phone did not report how accurate this position is.'}
+        {loc.stale ? ' The team has not updated its position recently.' : ''} Your white pin is the delivery point.
+      </p>
+    </section>
+  );
+}
 
 function ShareLinks({ requestId }) {
   const qc = useQueryClient();
@@ -86,7 +135,12 @@ export default function RequestDetailPage() {
   useLiveRecord('request', requestId);
 
   const detail = useQuery({ queryKey: ['request', requestId], queryFn: () => requestsApi.get(requestId), refetchInterval: 60000 });
-  const tracking = useQuery({ queryKey: ['tracking', requestId], queryFn: () => requestsApi.tracking(requestId), refetchInterval: 45000 });
+  const tracking = useQuery({
+    queryKey: ['tracking', requestId],
+    queryFn: () => requestsApi.tracking(requestId),
+    // Poll faster while a team is sharing its position on the road.
+    refetchInterval: (query) => (query.state.data?.dispatches?.some((d) => d.location?.sharedWithRequester) ? 15000 : 45000),
+  });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['request', requestId] });
     qc.invalidateQueries({ queryKey: ['tracking', requestId] });
@@ -99,6 +153,10 @@ export default function RequestDetailPage() {
   const t = tracking.data;
   const own = r.isOwn;
   const canCancel = (own && ['SUBMITTED', 'VERIFIED'].includes(r.status)) || (isStaff && ['CAMP_MANAGER', 'RELIEF_COORDINATOR', 'ADMIN'].includes(user.role) && ['SUBMITTED', 'VERIFIED', 'ALLOCATED'].includes(r.status));
+  const onTheRoad = (t?.dispatches ?? []).filter((d) => ['IN_TRANSIT', 'PARTIALLY_DELIVERED'].includes(d.status));
+  const liveDispatches = onTheRoad.filter((d) => d.location?.latitude != null && (d.location.sharedWithRequester || isStaff));
+  // The request-level state stays "team assigned" while the dispatch is moving; show the more specific label.
+  const statusLabel = r.status === 'DISPATCHED' && onTheRoad.length ? 'Delivery in progress' : r.statusLabel;
   const canAskEscalation = own && !['DELIVERED', 'REJECTED', 'CANCELLED'].includes(r.status) && user.role === 'CITIZEN';
 
   return (
@@ -116,7 +174,7 @@ export default function RequestDetailPage() {
               {r.referenceCode}
             </h1>
             <div className="row">
-              <Badge>{r.statusLabel}</Badge>
+              <Badge>{statusLabel}</Badge>
               {isStaff && <SeverityBadge severity={r.severity} prefix="Priority:" />}
               {r.verified && <Badge outline>Verified {timeAgo(r.verifiedAt)}</Badge>}
             </div>
@@ -138,6 +196,15 @@ export default function RequestDetailPage() {
 
       {r.status === 'REJECTED' && <Notice tone="warn" title="This request was not approved">{r.rejectionReason ?? 'Relief staff could not approve this request.'} You can send a new request if your situation has changed.</Notice>}
       {r.status === 'CANCELLED' && <Notice title="This request was cancelled">{r.cancelledReason}</Notice>}
+
+      {liveDispatches.map((d) => (
+        <div key={`live-${d.id}`} style={{ marginTop: 16 }}>
+          <LiveDeliveryMap
+            dispatch={d}
+            destination={r.latitude != null ? { latitude: r.latitude, longitude: r.longitude } : r.camp?.latitude != null ? { latitude: r.camp.latitude, longitude: r.camp.longitude } : null}
+          />
+        </div>
+      ))}
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', alignItems: 'start', marginTop: 16 }}>
         <div className="stack-lg">

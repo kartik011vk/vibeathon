@@ -11,8 +11,8 @@ const SocketContext = createContext({ status: 'off', subscribe: () => () => {} }
 
 const INVALIDATE = {
   'request:created': [['requests'], ['dashboard']],
-  'request:updated': [['requests'], ['request'], ['tracking'], ['dashboard']],
-  'request:verified': [['requests'], ['request'], ['tracking'], ['dashboard']],
+  'request:updated': [['requests'], ['request'], ['tracking'], ['dashboard'], ['open-needs'], ['offers']],
+  'request:verified': [['requests'], ['request'], ['tracking'], ['dashboard'], ['open-needs']],
   'alert:created': [['alerts'], ['dashboard']],
   'alert:updated': [['alerts'], ['dashboard']],
   'allocation:updated': [['allocations'], ['inventory'], ['tracking'], ['request']],
@@ -28,6 +28,7 @@ const INVALIDATE = {
   'inventory:updated': [['inventory'], ['availability']],
   'team:updated': [['teams'], ['map']],
   'zone:updated': [['zones']],
+  'supply:updated': [['donations'], ['inventory']],
 };
 
 export function SocketProvider({ children }) {

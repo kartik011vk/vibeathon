@@ -6,7 +6,7 @@ import { created, ok } from '../utils/respond.js';
 // Browser clients receive the refresh token only as an httpOnly cookie scoped to the auth routes.
 // Non-browser clients may opt into body delivery with { "tokenDelivery": "body" }.
 export const REFRESH_COOKIE = 'dos_refresh';
-const cookieOptions = () => ({
+export const refreshCookieOptions = () => ({
   httpOnly: true,
   secure: config.isProduction,
   sameSite: 'lax',
@@ -15,7 +15,7 @@ const cookieOptions = () => ({
 });
 
 function deliver(res, result, delivery) {
-  res.cookie(REFRESH_COOKIE, result.refreshToken, cookieOptions());
+  res.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions());
   return {
     user: result.user,
     accessToken: result.accessToken,

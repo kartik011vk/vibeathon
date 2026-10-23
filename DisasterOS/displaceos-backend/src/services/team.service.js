@@ -31,6 +31,7 @@ function shape(user, t) {
       ? {
           latitude: t.lastLatitude,
           longitude: t.lastLongitude,
+          accuracyMeters: t.lastAccuracyM,
           updatedAt: t.lastLocationAt,
           available: t.lastLatitude != null && t.lastLongitude != null,
           stale: isLocationStale(t.lastLocationAt),
@@ -88,11 +89,11 @@ export async function setAvailability(user, id, availability, req) {
   return getTeam(user, team.id);
 }
 
-export async function setLocation(user, id, { latitude, longitude }, req) {
+export async function setLocation(user, id, { latitude, longitude, accuracyMeters }, req) {
   assertTeamActor(user, id);
   const exists = await prisma.responseTeam.findUnique({ where: { id }, select: { id: true } });
   if (!exists) throw notFound('Team');
-  await prisma.responseTeam.update({ where: { id }, data: { lastLatitude: latitude, lastLongitude: longitude, lastLocationAt: new Date() } });
+  await prisma.responseTeam.update({ where: { id }, data: { lastLatitude: latitude, lastLongitude: longitude, lastAccuracyM: accuracyMeters ?? null, lastLocationAt: new Date() } });
   await audit(null, { actor: user, action: 'TEAM_LOCATION_UPDATED', entityType: 'ResponseTeam', entityId: id, req });
   // Coordinates are not broadcast; authorized clients refetch.
   emit([rooms.ops, rooms.team(id)], 'team:updated', { id, locationUpdated: true });

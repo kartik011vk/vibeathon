@@ -64,11 +64,13 @@ export function AuthProvider({ children }) {
       hasRole: (...roles) => Boolean(user && roles.includes(user.role)),
       login,
       register,
+      // Starts a session from any endpoint that returns { accessToken } (e.g. responder sign-up).
+      startSession: finishLogin,
       logout,
       refreshUser,
       setUser,
     }),
-    [user, status, login, register, logout, refreshUser],
+    [user, status, login, register, finishLogin, logout, refreshUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

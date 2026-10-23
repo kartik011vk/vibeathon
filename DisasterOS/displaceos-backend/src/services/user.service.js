@@ -9,12 +9,16 @@ import { notifyUsers } from './notification.service.js';
 const withScope = {
   locationAssignments: { include: { location: { select: { id: true, name: true, type: true } } } },
   teamMemberships: { include: { team: { select: { id: true, name: true } } } },
+  organization: { select: { id: true, name: true, type: true, status: true } },
 };
 
 export const profile = (u) => ({
   ...publicUser(u),
   assignedLocations: u.locationAssignments?.map((a) => a.location) ?? [],
   teams: u.teamMemberships?.map((m) => m.team) ?? [],
+  organization: u.organization ?? null,
+  orgRole: u.orgRole ?? null,
+  membershipStatus: u.membershipStatus ?? null,
 });
 
 export async function me(userId) {

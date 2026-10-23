@@ -15,6 +15,7 @@ import { canSeeExactTeamLocation, dispatchScope, findDispatchInScope, isCoordina
 import { notifyRoles, notifyUsers } from './notification.service.js';
 import { isLocationStale } from './team.service.js';
 import { routing } from '../adapters/index.js';
+import { acceptOffersTx } from './offer.service.js';
 import { emit, rooms } from '../sockets/emitter.js';
 
 export const TRANSITIONS = Object.freeze({
@@ -112,6 +113,7 @@ export async function createDispatch(user, { allocationId, teamId, notes }, req)
       },
     });
     await tx.responseTeam.update({ where: { id: teamId }, data: { availability: 'BUSY' } });
+    await acceptOffersTx(tx, allocation.requestId, teamId);
     await recomputeRequestStatus(tx, allocation.requestId);
     await addTimelineEvent(tx, { requestId: allocation.requestId, type: 'DISPATCH_ASSIGNED', message: 'A response team has been assigned to deliver your supplies', actor: user, data: { dispatchId: d.id } });
     await audit(tx, { actor: user, action: 'DISPATCH_CREATED', entityType: 'Dispatch', entityId: d.id, after: { allocationId, teamId }, req });
@@ -273,14 +275,15 @@ export async function cancelDispatch(user, id, { reason }, req) {
   return getDispatch(user, id);
 }
 
-export async function updateLocation(user, id, { latitude, longitude }, req) {
+export async function updateLocation(user, id, { latitude, longitude, accuracyMeters }, req) {
   const d = await findDispatchInScope(user, id, { include: { request: { include: { camp: true } } } });
   assertTeamActor(user, d, { allowCoordinator: false });
   if (!['ACCEPTED', 'IN_TRANSIT', 'PARTIALLY_DELIVERED'].includes(d.status)) throw invalidTransition(d.status, 'LOCATION_UPDATE', 'Dispatch');
   const now = new Date();
   await prisma.$transaction(async (tx) => {
-    await tx.dispatch.update({ where: { id }, data: { currentLatitude: latitude, currentLongitude: longitude, locationUpdatedAt: now } });
-    if (d.teamId) await tx.responseTeam.update({ where: { id: d.teamId }, data: { lastLatitude: latitude, lastLongitude: longitude, lastLocationAt: now } });
+    const accuracy = accuracyMeters ?? null;
+    await tx.dispatch.update({ where: { id }, data: { currentLatitude: latitude, currentLongitude: longitude, currentAccuracyM: accuracy, locationUpdatedAt: now } });
+    if (d.teamId) await tx.responseTeam.update({ where: { id: d.teamId }, data: { lastLatitude: latitude, lastLongitude: longitude, lastAccuracyM: accuracy, lastLocationAt: now } });
     await audit(tx, { actor: user, action: 'DISPATCH_LOCATION_UPDATED', entityType: 'Dispatch', entityId: id, req });
   });
   // A configured routing provider could refresh the ETA here. None ships by default, so ETA stays as recorded.
@@ -379,8 +382,12 @@ export function etaInfo(d) {
   };
 }
 
+// The requester sees the team's real position only while supplies are actually on the road to them.
+const LIVE_FOR_REQUESTER = ['IN_TRANSIT', 'PARTIALLY_DELIVERED'];
+
 export function shapeDispatch(user, d) {
-  const exact = canSeeExactTeamLocation(user, d.teamId);
+  const requesterLive = d.request?.requesterId === user.id && LIVE_FOR_REQUESTER.includes(d.status);
+  const exact = canSeeExactTeamLocation(user, d.teamId) || requesterLive;
   const dest = hasCoords(d.request) ? d.request : hasCoords(d.request?.camp) ? d.request.camp : null;
   const hasLoc = d.currentLatitude != null && d.currentLongitude != null;
   const staff = user.role !== Roles.CITIZEN;
@@ -418,8 +425,11 @@ export function shapeDispatch(user, d) {
       stale: hasLoc ? isLocationStale(d.locationUpdatedAt) : null,
       latitude: exact && hasLoc ? d.currentLatitude : undefined,
       longitude: exact && hasLoc ? d.currentLongitude : undefined,
+      // Device-reported 95% confidence radius; null when the device did not report one.
+      accuracyMeters: exact && hasLoc ? d.currentAccuracyM ?? null : undefined,
       // Approximate distance to destination is shared without revealing the team's exact position.
       approxDistanceToDestinationKm: hasLoc && dest ? haversineKm(d.currentLatitude, d.currentLongitude, dest.latitude, dest.longitude) : null,
+      sharedWithRequester: requesterLive,
       distanceBasis: hasLoc && dest ? 'STRAIGHT_LINE' : null,
     },
     eta: etaInfo(d),

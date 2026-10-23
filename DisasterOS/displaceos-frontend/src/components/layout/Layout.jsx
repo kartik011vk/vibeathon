@@ -75,6 +75,8 @@ export function Header() {
           <NavLink to="/help">Find help</NavLink>
           <NavLink to="/updates">Disaster updates</NavLink>
           <NavLink to="/track">Track</NavLink>
+          <NavLink to="/donate">Donate</NavLink>
+          {user?.organization && <NavLink to="/organization">My organisation</NavLink>}
           {isStaff && <NavLink to="/ops">Operations</NavLink>}
         </nav>
         <div className="header-tools">
@@ -115,6 +117,10 @@ export function Footer() {
           </p>
         </div>
         <div>
+          <h4>Want to help?</h4>
+          <p>
+            <a href="/join-responder">Join as a responder</a> (NGOs, rescue teams, government) · <a href="/donate">Donate supplies</a>
+          </p>
           <h4>For developers</h4>
           <p>
             <a href="/api/docs" target="_blank" rel="noreferrer">

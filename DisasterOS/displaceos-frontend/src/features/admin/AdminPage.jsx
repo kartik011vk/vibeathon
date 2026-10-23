@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { auditApi, placesApi, rulesApi, usersApi } from '../../api/services.js';
+import { auditApi, organizationsApi, placesApi, rulesApi, usersApi } from '../../api/services.js';
+import { ORG_TYPES } from '../responders/ResponderPages.jsx';
 import { useAuth } from '../../app/AuthContext.jsx';
 import { useToast } from '../../app/Toast.jsx';
-import { Badge, Dialog, EmptyState, ErrorState, Field, Loading, Notice, PageHead, SeverityBadge, Tabs } from '../../components/ui/index.jsx';
+import { Badge, Dialog, EmptyState, ErrorState, Field, Loading, Notice, PageHead, ReasonDialog, SeverityBadge, Tabs } from '../../components/ui/index.jsx';
 import { CATEGORIES, formatDateTime, HAZARD_LABELS, LOCATION_TYPES, ROLE_LABELS, SEVERITIES, SEVERITY } from '../../lib/format.js';
 import { parseCoordinate } from '../../lib/geo.js';
 
@@ -516,8 +517,81 @@ function Audit() {
   );
 }
 
+function Organizations() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [status, setStatus] = useState('PENDING');
+  const [rejecting, setRejecting] = useState(null);
+  const q = useQuery({ queryKey: ['organizations', status], queryFn: () => organizationsApi.list({ status: status || undefined, pageSize: 50 }), refetchInterval: 60000 });
+  const approve = useMutation({
+    mutationFn: (id) => organizationsApi.approve(id, 'Verified by administrator'),
+    onSuccess: () => (toast('Organisation approved — its lead can now respond'), qc.invalidateQueries({ queryKey: ['organizations'] }), qc.invalidateQueries({ queryKey: ['teams'] })),
+  });
+  return (
+    <div className="stack">
+      <Notice>
+        Check each organisation before approving: call the office number, and confirm registration documents or a government ID where possible. Approval lets its lead see open needs and receive deliveries.
+      </Notice>
+      <div className="row" role="group" aria-label="Filter organisations">
+        {[
+          ['PENDING', 'Waiting'],
+          ['APPROVED', 'Approved'],
+          ['REJECTED', 'Rejected'],
+          ['', 'All'],
+        ].map(([v, l]) => (
+          <button key={l} type="button" className={`btn btn-sm ${status === v ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={status === v} onClick={() => setStatus(v)}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {q.isPending && <Loading rows={3} />}
+      {q.isError && <ErrorState error={q.error} onRetry={q.refetch} />}
+      {q.data && q.data.data.length === 0 && <EmptyState title={status === 'PENDING' ? 'No organisations waiting' : 'None'} />}
+      {q.data?.data.map((o) => (
+        <article key={o.id} className="card">
+          <div className="row-between">
+            <div>
+              <strong>{o.name}</strong> <Badge outline>{ORG_TYPES[o.type]}</Badge>
+              <div className="small muted">
+                {o.area} · office {o.contactPhone} · registered {formatDateTime(o.createdAt)} · {o.memberCount} member{o.memberCount === 1 ? '' : 's'}
+              </div>
+            </div>
+            <Badge className={o.status === 'APPROVED' ? 'avail-AVAILABLE' : o.status === 'PENDING' ? 'sev-HIGH' : 'sev-RED'}>{o.status.toLowerCase()}</Badge>
+          </div>
+          {o.description && <p className="small" style={{ margin: '8px 0' }}>{o.description}</p>}
+          <div className="small">
+            Lead: {o.leads.map((l) => `${l.fullName} (${l.email}${l.phone ? `, ${l.phone}` : ''})`).join('; ')}
+          </div>
+          {o.reviewNote && <div className="small muted">Review note: {o.reviewNote}</div>}
+          {o.status === 'PENDING' && (
+            <div className="row" style={{ marginTop: 10 }}>
+              <button type="button" className="btn btn-primary btn-sm" disabled={approve.isPending} onClick={() => approve.mutate(o.id)}>
+                Approve
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRejecting(o)}>
+                Reject
+              </button>
+            </div>
+          )}
+        </article>
+      ))}
+      {approve.isError && <Notice tone="danger">{approve.error.message}</Notice>}
+      {rejecting && (
+        <ReasonDialog
+          title={`Reject ${rejecting.name}`}
+          description="The organisation lead sees this reason."
+          confirmLabel="Reject"
+          tone="danger"
+          onClose={() => setRejecting(null)}
+          onConfirm={async (r) => (await organizationsApi.reject(rejecting.id, r), qc.invalidateQueries({ queryKey: ['organizations'] }))}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
-  const [tab, setTab] = useState('users');
+  const [tab, setTab] = useState('orgs');
   return (
     <div>
       <PageHead eyebrow="Operations" title="Administration">
@@ -528,12 +602,14 @@ export default function AdminPage() {
         value={tab}
         onChange={setTab}
         tabs={[
+          { value: 'orgs', label: 'Responder organisations' },
           { value: 'users', label: 'Users and roles' },
           { value: 'places', label: 'Zones and locations' },
           { value: 'rules', label: 'Severity rules' },
           { value: 'audit', label: 'Audit log' },
         ]}
       />
+      {tab === 'orgs' && <Organizations />}
       {tab === 'users' && <Users />}
       {tab === 'places' && <Places />}
       {tab === 'rules' && <Rules />}

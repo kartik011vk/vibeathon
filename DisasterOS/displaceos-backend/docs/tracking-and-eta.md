@@ -21,7 +21,14 @@
 }
 ```
 
-Coordinators, admins and the assigned team additionally get exact `latitude/longitude` of the dispatch.
+Coordinators, admins and the assigned team always get the exact `latitude/longitude` of the dispatch. The requester
+gets them too, but only while the dispatch is `IN_TRANSIT` or `PARTIALLY_DELIVERED` (`location.sharedWithRequester`),
+so a family can see the team approaching on a map; the position is no longer shared once the run is closed.
+Teams share continuously from the Dispatch screen ("Share live location"), sending at most every 15 s.
+Each position carries the device-reported `accuracyMeters` (the Geolocation API's 95% confidence radius), returned as
+`location.accuracyMeters` and drawn as a circle on the requester's map. Fixes worse than 100 m are held back for up
+to a minute while a better one is current. Typical accuracy: about 5 m for phone GPS under open sky, tens of metres
+in streets or indoors, hundreds of metres to kilometres when only mobile towers or IP are available.
 `GET /dispatches/:id/tracking` adds `etaHistory[]` and `deliveries[]`.
 
 Request status labels (plain language, no extra states): SUBMITTED "Request received — waiting to be checked",
